@@ -14,29 +14,42 @@
 
 ## 🚀 快速开始
 
-### 环境要求
+### 方式一：直接下载exe（推荐，零配置）
+
+1. 前往 [Releases页面](https://github.com/Qiu-Difeng/xianyu-tool/releases/tag/v1.0)
+2. 下载 `xianyu-tool_v1.0.zip`
+3. 解压到任意目录
+4. 双击 `闲鱼辅助工具.exe` 运行
+5. 首次运行会弹出Chromium窗口 → 扫码登录闲鱼
+6. 后续运行自动复用登录态，无需重新扫码
+
+**不需要安装Python、Chrome或任何依赖，解压即用。**
+
+### 方式二：从源码运行
+
+#### 环境要求
 - Windows 10/11
 - Python 3.8+
 - 网络环境能访问闲鱼和智谱API
 
-### 安装依赖
+#### 安装依赖
 ```bash
 pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-### 配置
+#### 配置API Key
 设置智谱API Key环境变量（免费申请：https://open.bigmodel.cn/）：
 ```bash
 set ZHIPUAI_API_KEY=你的API Key
 ```
 
-### 运行
+#### 运行
 ```bash
 python xianyu_gui.py
 ```
 
-### 打包
+### 打包（目录模式，启动快）
 ```bash
 pyinstaller --noconfirm --windowed --name "闲鱼辅助工具" \
   --icon="xianyu_icon.ico" \
@@ -73,12 +86,23 @@ pyinstaller --noconfirm --windowed --name "闲鱼辅助工具" \
 
 ## 📋 使用流程
 
-1. 首次运行 → 弹出浏览器窗口 → 扫码登录闲鱼
+1. 首次运行 → 弹出Chromium窗口 → 扫码登录闲鱼
 2. 后续运行 → 后台无头模式，自动复用Cookie
 3. 粘贴闲鱼商品链接 → 点击"开始处理"
 4. 等待5大模块自动完成（约60-80秒）
 5. 查看：原图 / 去水印图 / 三版文案 / 补充图 / 视频
 6. 可独立刷新文案（V1/V2/V3各自不同结果）和补充图
+
+## ❓ 常见问题
+
+**Q: 需要安装Chrome浏览器吗？**
+A: 不需要。工具内置Playwright自带的Chromium，与日常浏览器完全独立。
+
+**Q: 需要安装Python吗？**
+A: 下载exe版不需要。从源码运行需要Python 3.8+。
+
+**Q: 首次使用要扫码登录安全吗？**
+A: 安全。登录数据保存在本地 `%LOCALAPPDATA%\XianyuTool_ChromeData`，不会上传任何地方。
 
 ## ⚠️ 免责声明
 
