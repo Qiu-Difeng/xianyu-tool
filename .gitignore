@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.eggs/
+*.egg-info/
+dist/
+build/
+*.spec
+
+# PyInstaller
+*.manifest
+
+# IDE
+.vscode/
+.idea/
+
+# 测试文件与调试产物
+test_*.py
+test_*.png
+test_*.html
+test_*.txt
+debug_*
+module1_result.json
+debug_detail_api.*
+
+# 调试截图
+*.png
+*.jpg
+!xianyu_icon.ico
+!wallpaper.jpg
+
+# 临时输出
+*.json
+!package.json
+!config.json
+
+# 工作区文件（私密）
+MEMORY.md
+SOUL.md
+USER.md
+AGENTS.md
+IDENTITY.md
+HEARTBEAT.md
+TOOLS.md
+.consolidate-state.json
+.qclaw-version
+wallpaper_b64.txt
+wallpaper_base64.txt
+wallpaper_small.jpg
+xiaoxi_*.jpg
+xiaoxi_*.png
+
+# 文档笔记（私密）
+闲鱼*.md
+去水印*.md
+
+# 旧版/废弃代码
+xianyu_tool_offline.py
+build_embed_html.py
+download_lama.py
+fix_img02.py
+license_manager.py
+screenshot_gui.py
+module5_*.py
+
+# 独立exe目录
+闲鱼辅助工具/
