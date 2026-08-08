@@ -26,7 +26,10 @@ python -m playwright install chromium
 ```
 
 ### 配置
-在 `module3_copywriter.py` 中替换你的智谱API Key（免费申请：https://open.bigmodel.cn/）
+设置智谱API Key环境变量（免费申请：https://open.bigmodel.cn/）：
+```bash
+set ZHIPUAI_API_KEY=你的API Key
+```
 
 ### 运行
 ```bash
