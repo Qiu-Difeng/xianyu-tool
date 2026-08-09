@@ -8,6 +8,8 @@ import asyncio
 import threading
 import traceback
 import warnings
+import tempfile
+import shutil
 warnings.filterwarnings("ignore")
 
 if getattr(sys, 'frozen', False):
@@ -25,6 +27,131 @@ class Api:
     def __init__(self, window_ref):
         self.window = window_ref
         self._last_result = None  # 缓存上次结果供刷新用
+        self._update_info = None  # 缓存更新信息
+
+    def _get_local_version(self):
+        """读取本地版本号：优先注册表，源码运行默认1.0"""
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\XianyuTool') as key:
+                version, _ = winreg.QueryValueEx(key, 'Version')
+                return version
+        except Exception:
+            return '1.0'
+
+    def _parse_version(self, tag):
+        """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
+        if not tag:
+            return (0, 0, 0)
+        tag = tag.strip().lstrip('vV').strip()
+        parts = []
+        for p in tag.split('.'):
+            try:
+                parts.append(int(p))
+            except ValueError:
+                # 取数字前缀
+                num = ''
+                for ch in p:
+                    if ch.isdigit():
+                        num += ch
+                    else:
+                        break
+                parts.append(int(num) if num else 0)
+        return tuple(parts) if parts else (0, 0, 0)
+
+    def check_update(self):
+        """检查GitHub Release是否有新版。返回 dict: has_update, latest_version, download_url, current_version, message"""
+        try:
+            import httpx
+            local_ver = self._get_local_version()
+            resp = httpx.get(
+                'https://api.github.com/repos/Qiu-Difeng/xianyu-tool/releases/latest',
+                timeout=15,
+                headers={'Accept': 'application/vnd.github+json'}
+            )
+            if resp.status_code != 200:
+                return {'has_update': False, 'error': 'HTTP ' + str(resp.status_code), 'current_version': local_ver}
+            data = resp.json()
+            tag = data.get('tag_name', '')
+            latest_ver = tag.lstrip('vV') if tag else ''
+            # 对比版本号
+            if self._parse_version(tag) > self._parse_version(local_ver):
+                # 找exe安装包下载URL
+                download_url = None
+                for asset in data.get('assets', []):
+                    name = asset.get('name', '').lower()
+                    if name.endswith('.exe') and 'setup' in name:
+                        download_url = asset.get('browser_download_url')
+                        break
+                if not download_url:
+                    # 没有setup exe，取第一个exe
+                    for asset in data.get('assets', []):
+                        if asset.get('name', '').lower().endswith('.exe'):
+                            download_url = asset.get('browser_download_url')
+                            break
+                if not download_url:
+                    # 没有assets，用zip页面
+                    download_url = data.get('html_url', 'https://github.com/Qiu-Difeng/xianyu-tool/releases')
+                self._update_info = {
+                    'has_update': True,
+                    'latest_version': latest_ver,
+                    'current_version': local_ver,
+                    'download_url': download_url,
+                    'release_notes': data.get('body', '')[:500],
+                    'release_page': data.get('html_url', ''),
+                }
+                return self._update_info
+            else:
+                self._update_info = {'has_update': False, 'latest_version': latest_ver, 'current_version': local_ver}
+                return self._update_info
+        except Exception as e:
+            return {'has_update': False, 'error': str(e), 'current_version': self._get_local_version()}
+
+    def download_update(self):
+        """下载更新安装包到临时目录，返回保存路径。"""
+        try:
+            import httpx
+            info = self._update_info
+            if not info or not info.get('has_update'):
+                return {'success': False, 'error': '无可用更新'}
+            url = info.get('download_url')
+            if not url:
+                return {'success': False, 'error': '无下载链接'}
+            # 下载到临时目录
+            tmp_dir = tempfile.gettempdir()
+            filename = url.split('/')[-1].split('?')[0] or 'xianyu_tool_setup.exe'
+            dst_path = os.path.join(tmp_dir, filename)
+            # 流式下载
+            with httpx.Client(follow_redirects=True, timeout=300) as client:
+                with client.stream('GET', url) as resp:
+                    resp.raise_for_status()
+                    total = int(resp.headers.get('content-length', 0))
+                    downloaded = 0
+                    with open(dst_path, 'wb') as f:
+                        for chunk in resp.iter_bytes(chunk_size=65536):
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            # 通过JS通知前端进度
+                            if total > 0 and self.window.get('window'):
+                                try:
+                                    pct = round(downloaded / total * 100, 1)
+                                    self.window['window'].evaluate_js(
+                                        'window._updateDownloadProgress && window._updateDownloadProgress(' + str(pct) + ')'
+                                    )
+                                except Exception:
+                                    pass
+            return {'success': True, 'path': dst_path}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def open_file(self, path):
+        """打开文件或文件夹"""
+        try:
+            if sys.platform == 'win32':
+                os.startfile(path)
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     def run_tool(self, url, search_max=15):
         try:
@@ -343,4 +470,23 @@ if __name__ == "__main__":
         text_select=True,
     )
     window_ref['window'] = window
+
+    # 启动时静默检查更新（不阻塞界面）
+    def _silent_check_update():
+        import time
+        time.sleep(3)  # 等待界面加载完成
+        try:
+            result = api.check_update()
+            if result.get('has_update'):
+                latest = result.get('latest_version', '')
+                window.evaluate_js(
+                    'window._onSilentUpdateCheck && window._onSilentUpdateCheck(' +
+                    json.dumps(result) + ')'
+                )
+        except Exception:
+            pass
+
+    t_update = threading.Thread(target=_silent_check_update, daemon=True)
+    t_update.start()
+
     webview.start(debug=False)
