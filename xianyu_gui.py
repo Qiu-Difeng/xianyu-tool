@@ -19,8 +19,13 @@ else:
 sys.path.insert(0, WORKSPACE)
 
 import webview
+import certifi
 
 HTML_FILE = os.path.join(WORKSPACE, "gui_embed.html")
+
+# PyInstaller打包后SSL证书路径修复
+os.environ['SSL_CERT_FILE'] = certifi.where()
+os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
 
 class Api:
@@ -67,7 +72,8 @@ class Api:
             resp = httpx.get(
                 'https://api.github.com/repos/Qiu-Difeng/xianyu-tool/releases/latest',
                 timeout=15,
-                headers={'Accept': 'application/vnd.github+json'}
+                headers={'Accept': 'application/vnd.github+json'},
+                verify=certifi.where()
             )
             if resp.status_code != 200:
                 return {'has_update': False, 'error': 'HTTP ' + str(resp.status_code), 'current_version': local_ver}
@@ -122,7 +128,7 @@ class Api:
             filename = url.split('/')[-1].split('?')[0] or 'xianyu_tool_setup.exe'
             dst_path = os.path.join(tmp_dir, filename)
             # 流式下载
-            with httpx.Client(follow_redirects=True, timeout=300) as client:
+            with httpx.Client(follow_redirects=True, timeout=300, verify=certifi.where()) as client:
                 with client.stream('GET', url) as resp:
                     resp.raise_for_status()
                     total = int(resp.headers.get('content-length', 0))
