@@ -13,8 +13,7 @@ import json
 import re
 import os
 import sys
-import platform
-import subprocess
+# platform/subprocess 已移除（旧CDP函数已删除）
 import time
 import random
 from urllib.parse import urlparse, parse_qs
@@ -37,79 +36,8 @@ LOGIN_FLAG = os.path.join(CHROME_USER_DATA, 'logged_in.flag')
 
 
 # ============================================================
-# Chrome/CDP 管理
+# 浏览器管理（旧CDP函数已删除，改用Playwright自带Chromium）
 # ============================================================
-async def _find_chrome_exe():
-    """查找Chrome/Edge可执行路径"""
-    if platform.system() != 'Windows':
-        return None
-    candidates = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    try:
-        for name in ['chrome', 'msedge']:
-            r = subprocess.run(['where', name], capture_output=True, text=True, timeout=3)
-            if r.returncode == 0 and r.stdout.strip():
-                return r.stdout.strip().split('\n')[0]
-    except:
-        pass
-    return None
-
-
-async def _test_cdp(port=9222):
-    """测试CDP端口是否可用，返回wsEndpoint"""
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=2) as c:
-            r = await c.get(f'http://127.0.0.1:{port}/json/version')
-            if r.status_code == 200:
-                return r.json().get('webSocketDebuggerUrl', '')
-    except:
-        pass
-    return None
-
-
-async def _kill_chrome_debug(port=9222):
-    """关闭调试端口的Chrome（只关调试Chrome，不影响日常浏览器）"""
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=2) as c:
-            r = await c.get(f'http://127.0.0.1:{port}/json/close')
-    except:
-        pass
-    # 通过端口找进程PID
-    try:
-        result = subprocess.run(
-            f'netstat -ano | findstr ":{port} " | findstr "LISTENING"',
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            lines = result.stdout.strip().split('\n')
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 5:
-                    pid = parts[-1]
-                    # 确认是Chrome
-                    check = subprocess.run(
-                        f'tasklist /FI "PID eq {pid}" /FI "IMAGENAME eq chrome.exe"',
-                        capture_output=True, text=True, timeout=3
-                    )
-                    if 'chrome.exe' in check.stdout or 'msedge.exe' in check.stdout:
-                        subprocess.run(f'taskkill /PID {pid} /F', capture_output=True, timeout=5)
-                        print(f"  已关闭旧Chrome进程 (PID={pid})")
-                        await asyncio.sleep(2)
-                        return True
-    except:
-        pass
-    return False
-
 
 async def launch_chrome_debug(port=9222, headless=False):
     """
@@ -334,39 +262,39 @@ async def parse_xianyu(url, debug=False):
         result["error"] = "⚠️ 无法启动浏览器，请检查Playwright安装。"
         return result
 
-        detail_api_body = None
-        captured_images = {}
+    detail_api_body = None
+    captured_images = {}
 
-        async def on_response(response):
-            nonlocal detail_api_body, captured_images
-            resp_url = response.url
-            # 拦截详情API
-            if ('mtop' in resp_url and 'detail' in resp_url
-                    and 'recommend' not in resp_url and 'login' not in resp_url):
-                try:
-                    body = await response.text()
-                    if body and len(body) > 5000:
-                        if not detail_api_body or len(body) > len(detail_api_body):
-                            detail_api_body = body
-                            if debug:
-                                print(f"  [API] {len(body)}B")
-                except:
-                    pass
-            # 拦截商品图片
-            if ('alicdn.com' in resp_url
-                    and ('bao/uploaded' in resp_url or 'imgextra' in resp_url)
-                    and 'icon' not in resp_url.lower()
-                    and 'logo' not in resp_url.lower()
-                    and 'avatar' not in resp_url.lower()):
-                try:
-                    body = await response.body()
-                    if body and len(body) > 3000:
-                        m = re.search(r'(O1CN0\w+)', resp_url)
-                        img_id = m.group(1) if m else resp_url
-                        if img_id not in captured_images or len(body) > len(captured_images[img_id]):
-                            captured_images[img_id] = body
-                except:
-                    pass
+    async def on_response(response):
+        nonlocal detail_api_body, captured_images
+        resp_url = response.url
+        # 拦截详情API
+        if ('mtop' in resp_url and 'detail' in resp_url
+                and 'recommend' not in resp_url and 'login' not in resp_url):
+            try:
+                body = await response.text()
+                if body and len(body) > 5000:
+                    if not detail_api_body or len(body) > len(detail_api_body):
+                        detail_api_body = body
+                        if debug:
+                            print(f"  [API] {len(body)}B")
+            except:
+                pass
+        # 拦截商品图片
+        if ('alicdn.com' in resp_url
+                and ('bao/uploaded' in resp_url or 'imgextra' in resp_url)
+                and 'icon' not in resp_url.lower()
+                and 'logo' not in resp_url.lower()
+                and 'avatar' not in resp_url.lower()):
+            try:
+                body = await response.body()
+                if body and len(body) > 3000:
+                    m = re.search(r'(O1CN0\w+)', resp_url)
+                    img_id = m.group(1) if m else resp_url
+                    if img_id not in captured_images or len(body) > len(captured_images[img_id]):
+                        captured_images[img_id] = body
+            except:
+                pass
 
     page = await context.new_page()
     page.on("response", on_response)

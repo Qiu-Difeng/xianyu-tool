@@ -311,7 +311,11 @@ def regenerate_copy(title, desc, version):
 # ============================================================
 async def search_extra_images(product_image, output_dir, max_images=15):
     # 延迟导入：module5未包含在git仓库中，避免顶部import报错
-    from module5_imgsearch_final import search_by_image, download_images, filter_watermarked_images
+    try:
+        from module5_imgsearch_final import search_by_image, download_images, filter_watermarked_images
+    except ImportError:
+        print("  ⚠ 补充图模块未安装（module5_imgsearch_final），仅源码版可用")
+        return [], ""
     print(f"\n{'='*60}")
     print(f"模块5：百度识图搜补充图 + 水印过滤 + 同款检测（最多{max_images}张）")
     print(f"{'='*60}")

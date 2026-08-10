@@ -38,6 +38,13 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+@keyframes spinEmoji {
+  to { transform: rotate(360deg); }
+}
+.spinning {
+  display: inline-block;
+  animation: spinEmoji 1.5s linear infinite;
+}
 
 :root {
   --glass: rgba(10, 18, 40, 0.72);
@@ -503,33 +510,57 @@ function runTool() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) { setStatus('请输入链接！', 'error'); return; }
 
+  // 简单链接验证
+  if (!url.match(/https?:\/\/[\w\.-]+/i)) {
+    setStatus('链接格式不正确，请粘贴闲鱼分享链接', 'error');
+    addLog('💥 链接格式不正确', 'error');
+    return;
+  }
+
   const searchMax = parseInt(document.getElementById('searchMax').value) || 15;
 
   clearLog();
   addLog('🌨️ 开始处理，和小新小白一起漫步吧~', 'accent');
-  setStatus('正在运行...', 'running');
-  setProgress(10);
+  setStatus('正在启动浏览器...', 'running');
+  setProgress(5);
   setBtnLoading(true);
 
+  // 进度模拟（实际进度由各阶段回调驱动）
+  let fakeProgress = 5;
+  const progressTimer = setInterval(() => {
+    if (fakeProgress < 90) {
+      fakeProgress += 1;
+      setProgress(fakeProgress);
+      if (fakeProgress === 15) setStatus('解析闲鱼链接...', 'running');
+      if (fakeProgress === 30) setStatus('下载商品图片...', 'running');
+      if (fakeProgress === 50) setStatus('去水印 + 生成文案...', 'running');
+      if (fakeProgress === 80) setStatus('整理结果...', 'running');
+    }
+  }, 800);
+
   for (let i = 0; i < 6; i++) {
-    document.getElementById('pane' + i).innerHTML = '<div class="empty"><span class="emoji">⛄</span><p>处理中，请稍候...</p></div>';
+    document.getElementById('pane' + i).innerHTML = '<div class="empty"><span class="emoji spinning">⛄</span><p>处理中，请稍候...</p></div>';
   }
 
   pywebview.api.run_tool(url, searchMax).then(result => {
+    clearInterval(progressTimer);
     setBtnLoading(false);
-    if (result.success) {
+    if (result && result.success) {
+      setProgress(100);
       addLog('✨ 全流程完成！耗时 ' + result.elapsed + '秒', 'success');
       setStatus('完成！耗时 ' + result.elapsed + '秒', 'done');
-      setProgress(100);
       displayResult(result);
     } else {
-      addLog('💥 处理失败: ' + (result.error || '未知错误'), 'error');
-      setStatus('失败', 'error');
+      const errMsg = (result && result.error) ? result.error : '未知错误，请检查链接是否有效';
+      addLog('💥 处理失败: ' + errMsg, 'error');
+      setStatus('失败: ' + errMsg.substring(0, 30), 'error');
       setProgress(0);
     }
   }).catch(err => {
+    clearInterval(progressTimer);
     setBtnLoading(false);
-    addLog('💥 错误: ' + err, 'error');
+    const errMsg = String(err).substring(0, 100);
+    addLog('💥 错误: ' + errMsg, 'error');
     setStatus('运行出错', 'error');
     setProgress(0);
   });
@@ -803,6 +834,10 @@ function checkUpdate(manual) {
 // 启动时静默检查更新的回调
 window._onSilentUpdateCheck = function(result) {
   if (result && result.has_update) {
+    // 检查是否已跳过该版本
+    if (isVersionSkipped(result.latest_version)) {
+      return; // 用户已跳过此版本，不提示
+    }
     const dot = document.getElementById('updateDot');
     const text = document.getElementById('updateBtnText');
     dot.className = 'dot has-update';
@@ -876,6 +911,7 @@ function showUpdateModal(info) {
         </div>
       </div>
       <div style="display:flex;gap:10px;">
+        <button onclick="skipUpdate('${info.latest_version}')" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;">跳过此版本</button>
         <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">稍后</button>
         <button id="downloadUpdateBtn" onclick="downloadUpdate()" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">⬇️ 下载更新</button>
       </div>
@@ -943,6 +979,24 @@ function runInstaller(path) {
       addLog('💥 启动安装程序失败: ' + r.error, 'error');
     }
   });
+}
+
+// 跳过此版本：记录到localStorage，不再提示
+function skipUpdate(version) {
+  try {
+    localStorage.setItem('skipVersion', version);
+    addLog('⏭️ 已跳过 v' + version + '，下次有更新仍会提示', 'accent');
+  } catch(e) {}
+  document.getElementById('updateOverlay').remove();
+}
+
+// 检查是否已跳过该版本
+function isVersionSkipped(version) {
+  try {
+    return localStorage.getItem('skipVersion') === version;
+  } catch(e) {
+    return false;
+  }
 }
 
 // 启动时自动检查更新（静默）

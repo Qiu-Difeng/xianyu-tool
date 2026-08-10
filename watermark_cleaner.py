@@ -52,7 +52,7 @@ def _detect_watermark_region_glm4v(img_path):
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                    {"type": "text", "text": "图上有无半透明水印文字（店铺名/禁止盗图等）？有则回答区域百分比y1,y2,x1,x2，无则回答'无水印'"}
+                    {"type": "text", "text": "图上有无半透明水印文字（店铺名/禁止盗图等）？有多块水印则分别回答，格式：y1,y2,x1,x2;y1,y2,x1,x2;... 无水印则回答'无水印'"}
                 ]
             }],
         )
@@ -61,18 +61,24 @@ def _detect_watermark_region_glm4v(img_path):
         if '无水印' in answer:
             return False, None  # 确认无水印
 
-        # 尝试提取坐标
+        # 尝试提取多组坐标（分号分隔）
         import re
-        m = re.search(r'(\d+)[,，](\d+)[,，](\d+)[,，](\d+)', answer)
-        if m:
-            y1, y2, x1, x2 = [int(x) for x in m.groups()]
-            # 坐标合法性检查
-            if 0 <= y1 < y2 <= 100 and 0 <= x1 < x2 <= 100 and (y2 - y1) > 3 and (x2 - x1) > 3:
-                return True, (y1, y2, x1, x2)
+        regions = []
+        # 按分号分割多块水印
+        parts = re.split(r'[;；]', answer)
+        for part in parts:
+            m = re.search(r'(\d+)[,，](\d+)[,，](\d+)[,，](\d+)', part)
+            if m:
+                y1, y2, x1, x2 = [int(x) for x in m.groups()]
+                if 0 <= y1 < y2 <= 100 and 0 <= x1 < x2 <= 100 and (y2 - y1) > 3 and (x2 - x1) > 3:
+                    regions.append((y1, y2, x1, x2))
+        
+        if regions:
+            return True, regions  # 返回多区域列表
 
         # 有水印但没给出合法坐标，用默认区域
         if '有' in answer and '无水印' not in answer:
-            return True, (30, 55, 5, 92)  # 默认水印区域
+            return True, [(30, 55, 5, 92)]  # 默认水印区域
 
         return None, None  # 不确定
     except Exception as e:
@@ -140,24 +146,29 @@ def process_single_image(img_path, output_path, reference_image=None):
             shutil.copy2(img_path, output_path)
             return output_path
 
-        # 有水印，拿到区域坐标
-        y1_pct, y2_pct, x1_pct, x2_pct = region
-        y1, y2 = int(h * y1_pct / 100), int(h * y2_pct / 100)
-        x1, x2 = int(w * x1_pct / 100), int(w * x2_pct / 100)
-
-        # 扩展mask边界（确保覆盖水印边缘）
-        pad = max(5, min(w, h) // 50)
-        y1 = max(0, y1 - pad)
-        y2 = min(h, y2 + pad)
-        x1 = max(0, x1 - pad)
-        x2 = min(w, x2 + pad)
+        # 有水印，region是多区域列表 [(y1,y2,x1,x2), ...]
+        if not isinstance(region, list):
+            region = [region]
+        
+        # 计算每个区域的像素坐标并扩展边界
+        regions_px = []
+        for y1_pct, y2_pct, x1_pct, x2_pct in region:
+            y1, y2 = int(h * y1_pct / 100), int(h * y2_pct / 100)
+            x1, x2 = int(w * x1_pct / 100), int(w * x2_pct / 100)
+            pad = max(5, min(w, h) // 50)
+            y1 = max(0, y1 - pad)
+            y2 = min(h, y2 + pad)
+            x1 = max(0, x1 - pad)
+            x2 = min(w, x2 + pad)
+            regions_px.append((y1, y2, x1, x2))
 
         # 步骤2：LaMa修复
         lama = get_lama()
 
-        # 创建mask
+        # 创建包含所有水印区域的mask
         mask = np.zeros((h, w), dtype=np.uint8)
-        mask[y1:y2, x1:x2] = 255
+        for y1, y2, x1, x2 in regions_px:
+            mask[y1:y2, x1:x2] = 255
         mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=2)
 
         # 第1轮LaMa
@@ -165,21 +176,22 @@ def process_single_image(img_path, output_path, reference_image=None):
         result = lama(pil_img, Image.fromarray(mask))
         result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
 
-        # 第2轮LaMa（缩小mask，修复残留）
+        # 第2轮LaMa（缩小每个区域的mask，修复残留）
         mask2 = np.zeros((h, w), dtype=np.uint8)
-        margin_y = int((y2 - y1) * 0.1)
-        margin_x = int((x2 - x1) * 0.1)
-        mask2[max(0, y1 + margin_y):min(h, y2 - margin_y),
-              max(0, x1 + margin_x):min(w, x2 - margin_x)] = 255
+        for y1, y2, x1, x2 in regions_px:
+            margin_y = int((y2 - y1) * 0.1)
+            margin_x = int((x2 - x1) * 0.1)
+            mask2[max(0, y1 + margin_y):min(h, y2 - margin_y),
+                  max(0, x1 + margin_x):min(w, x2 - margin_x)] = 255
         mask2 = cv2.dilate(mask2, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
 
         pil_result = Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
         result = lama(pil_result, Image.fromarray(mask2))
         result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
 
-        # 步骤3：羽化贴回（保护关键区域不变形）
-        # 羽化区域比水印区域稍大，让修复结果和原图平滑过渡
-        result = _feather_blend(result, img, y1, y2, x1, x2, feather=12)
+        # 步骤3：羽化贴回每个区域（保护关键区域不变形）
+        for y1, y2, x1, x2 in regions_px:
+            result = _feather_blend(result, img, y1, y2, x1, x2, feather=12)
 
         cv2.imwrite(output_path, result)
         return output_path
