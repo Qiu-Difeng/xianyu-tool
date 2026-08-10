@@ -19,13 +19,31 @@ else:
 sys.path.insert(0, WORKSPACE)
 
 import webview
+import ssl
 import certifi
 
 HTML_FILE = os.path.join(WORKSPACE, "gui_embed.html")
 
 # PyInstaller打包后SSL证书路径修复
-os.environ['SSL_CERT_FILE'] = certifi.where()
-os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+# 优先用打包目录下的cacert.pem，其次用certifi包自带的
+_ca_bundle = os.path.join(WORKSPACE, 'cacert.pem')
+if not os.path.exists(_ca_bundle):
+    try:
+        _ca_bundle = certifi.where()
+    except Exception:
+        _ca_bundle = None
+if _ca_bundle and os.path.exists(_ca_bundle):
+    os.environ['SSL_CERT_FILE'] = _ca_bundle
+    os.environ['REQUESTS_CA_BUNDLE'] = _ca_bundle
+
+# 创建全局SSL上下文
+_ssl_context = ssl.create_default_context()
+if _ca_bundle and os.path.exists(_ca_bundle):
+    _ssl_context.load_verify_locations(_ca_bundle)
+
+# certifi的where()可能返回打包后不存在的路径，统一用_ca_bundle
+def _get_ca_bundle():
+    return _ca_bundle
 
 
 class Api:
@@ -73,7 +91,7 @@ class Api:
                 'https://api.github.com/repos/Qiu-Difeng/xianyu-tool/releases/latest',
                 timeout=15,
                 headers={'Accept': 'application/vnd.github+json'},
-                verify=certifi.where()
+                verify=_ca_bundle
             )
             if resp.status_code != 200:
                 return {'has_update': False, 'error': 'HTTP ' + str(resp.status_code), 'current_version': local_ver}
@@ -128,7 +146,7 @@ class Api:
             filename = url.split('/')[-1].split('?')[0] or 'xianyu_tool_setup.exe'
             dst_path = os.path.join(tmp_dir, filename)
             # 流式下载
-            with httpx.Client(follow_redirects=True, timeout=300, verify=certifi.where()) as client:
+            with httpx.Client(follow_redirects=True, timeout=300, verify=_ca_bundle) as client:
                 with client.stream('GET', url) as resp:
                     resp.raise_for_status()
                     total = int(resp.headers.get('content-length', 0))
