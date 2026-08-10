@@ -14,16 +14,16 @@
 
 ## 🚀 快速开始
 
-### 方式一：直接下载exe（推荐，零配置）
+### 方式一：下载安装包（推荐，零配置）
 
-1. 前往 [Releases页面](https://github.com/Qiu-Difeng/xianyu-tool/releases/tag/v1.0)
-2. 下载 `xianyu-tool_v1.0.zip`
-3. 解压到任意目录
-4. 双击 `闲鱼辅助工具.exe` 运行
+1. 前往 [Releases页面](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest)
+2. 下载 `XianyuTool_Setup.exe`
+3. 双击安装，可选择安装路径
+4. 桌面出现 `XianyuTool` 快捷方式，双击运行
 5. 首次运行会弹出Chromium窗口 → 扫码登录闲鱼
 6. 后续运行自动复用登录态，无需重新扫码
 
-**不需要安装Python、Chrome或任何依赖，解压即用。**
+**不需要安装Python、Chrome或任何依赖，安装即用。**
 
 ### 方式二：从源码运行
 
@@ -49,17 +49,24 @@ set ZHIPUAI_API_KEY=你的API Key
 python xianyu_gui.py
 ```
 
-### 打包（目录模式，启动快）
+### 打包（目录模式 + NSIS安装包）
 ```bash
-pyinstaller --noconfirm --windowed --name "闲鱼辅助工具" \
+# PyInstaller目录模式
+pyinstaller --noconfirm --windowed --name "XianyuTool" \
   --icon="xianyu_icon.ico" \
   --add-data "gui_embed.html;." \
   --add-data "wallpaper.jpg;." \
+  --add-data "cacert.pem;." \
   --hidden-import=playwright.async_api \
   --hidden-import=anti_detect \
   --hidden-import=watermark_cleaner \
   --hidden-import=simple_lama_inpainting \
+  --hidden-import=certifi \
+  --collect-data certifi \
   xianyu_gui.py
+
+# NSIS安装包
+makensis installer.nsi
 ```
 
 ## 🏗️ 项目结构
