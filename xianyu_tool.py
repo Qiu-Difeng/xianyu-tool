@@ -45,7 +45,7 @@ if os.path.exists(OUTPUT_ROOT):
     import shutil
     shutil.rmtree(OUTPUT_ROOT, ignore_errors=True)
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
-PYTHON = r"C:\Users\86175\AppData\Local\Programs\Python\Python38\python.exe"
+# PYTHON路径已移除（未使用，改为sys.executable动态获取）
 
 sys.path.insert(0, WORKSPACE)
 from module1_parser import parse_xianyu
@@ -309,9 +309,9 @@ def regenerate_copy(title, desc, version):
 # ============================================================
 # 模块5：百度识图搜补充图 + 水印过滤
 # ============================================================
-from module5_imgsearch_final import search_by_image, download_images, filter_watermarked_images
-
 async def search_extra_images(product_image, output_dir, max_images=15):
+    # 延迟导入：module5未包含在git仓库中，避免顶部import报错
+    from module5_imgsearch_final import search_by_image, download_images, filter_watermarked_images
     print(f"\n{'='*60}")
     print(f"模块5：百度识图搜补充图 + 水印过滤 + 同款检测（最多{max_images}张）")
     print(f"{'='*60}")
