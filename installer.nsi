@@ -8,12 +8,12 @@ InstallDirRegKey HKCU "Software\XianyuTool" "InstallDir"
 RequestExecutionLevel User
 ShowInstDetails show
 
-VIProductVersion "1.1.0.0"
+VIProductVersion "1.2.0.0"
 VIAddVersionKey /LANG=2052 "ProductName" "XianyuTool"
 VIAddVersionKey /LANG=2052 "CompanyName" "Qiu-Difeng"
 VIAddVersionKey /LANG=2052 "FileDescription" "XianyuTool Setup"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "MIT License"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.1.0.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.2.0.0"
 
 !define MUI_ICON "xianyu_icon.ico"
 !define MUI_UNICON "xianyu_icon.ico"
@@ -49,7 +49,7 @@ Section "Main" SecMain
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayName" "XianyuTool"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "UninstallString" '"$INSTDIR\uninstall.exe"'
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayIcon" '"$INSTDIR\XianyuTool.exe"'
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.1"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.2"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "Publisher" "Qiu-Difeng"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "InstallLocation" "$INSTDIR"
     
@@ -76,5 +76,6 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInstSuccess
-    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.1"
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.2"
 FunctionEnd
+
