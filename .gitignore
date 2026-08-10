@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-*.spec
+# *.spec  # 保留spec文件用于打包
 
 # PyInstaller
 *.manifest
@@ -54,6 +54,11 @@ xiaoxi_*.png
 # 文档笔记（私密）
 闲鱼*.md
 去水印*.md
+项目优化*.md
+深度代码*.md
+github_release*.md
+nsis安装包*.md
+更新功能*.md
 
 # 旧版/废弃代码
 xianyu_tool_offline.py
@@ -64,5 +69,6 @@ license_manager.py
 screenshot_gui.py
 module5_*.py
 
-# 独立exe目录
+# 安装包与exe产物
+XianyuTool_Setup.exe
 闲鱼辅助工具/
