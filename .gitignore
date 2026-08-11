@@ -31,6 +31,8 @@ debug_detail_api.*
 !wallpaper.jpg
 !docs/*.png
 !docs/*.jpg
+!docs/*.gif
+docs/*.webm
 
 # 临时输出
 *.json
@@ -70,6 +72,7 @@ fix_img02.py
 license_manager.py
 screenshot_gui.py
 module5_*.py
+record_demo.py
 
 # 安装包与exe产物
 XianyuTool_Setup.exe
