@@ -22,7 +22,7 @@
 
 ## 🖼️ 界面预览
 
-![演示动画](https://github.com/Qiu-Difeng/xianyu-tool/releases/download/v1.2/demo_real.gif)
+![演示动画](docs/demo_real.gif)
 
 > 🎨 蜡笔小新冬夜主题 — 输入链接 → 自动处理 → 展示结果
 
