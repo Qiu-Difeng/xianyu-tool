@@ -29,6 +29,8 @@ debug_detail_api.*
 *.jpg
 !xianyu_icon.ico
 !wallpaper.jpg
+!docs/*.png
+!docs/*.jpg
 
 # 临时输出
 *.json
