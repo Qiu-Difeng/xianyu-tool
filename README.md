@@ -1,115 +1,125 @@
 # 🐟 闲鱼辅助工具
 
-> 闲鱼商品文案与图片一站式处理桌面工具
+> 闲鱼卖家效率神器 — 一键解析商品、AI去水印、智能改写文案、搜补充图
 
-## ✨ 功能
+## 🎯 解决什么问题？
 
-| 模块 | 功能 | 技术 |
+闲鱼卖家日常痛点：
+- 🔄 多账号运营，文案不能撞车 → **一键生成3版差异化文案**
+- 🖼️ 商品图有水印，盗图被封号 → **AI检测+LaMa修复，去水印无痕迹**
+- 📸 图片不够9张 → **百度识图搜同类商品图，AI过滤带水印的**
+- ⏱️ 手动复制粘贴太慢 → **粘贴链接，60秒全自动处理**
+
+## ✨ 功能一览
+
+| 模块 | 功能 | 效果 |
 |------|------|------|
-| 🔗 链接解析 | 输入闲鱼商品链接，自动提取标题、文案、价格、图片 | Playwright + 闲鱼API拦截 |
-| 📦 图片下载 | 并行下载商品原图 | httpx异步 |
-| 🧽 去水印 | AI检测水印位置 → LaMa修复 → 羽化贴回 | GLM-4V + LaMa + OpenCV |
-| 📝 三版文案 | V1词典替换 / V2 AI微调 / V3 AI重写（可自定义提示词） | 智谱GLM-4-Flash |
-| 🔍 补充图 | 百度识图搜相似商品图，凑齐9张 | Playwright + GLM-4V过滤 |
+| 🔗 链接解析 | 粘贴闲鱼链接，自动提取标题/文案/价格/图片 | 结构化数据，比爬页面更准 |
+| 🧽 AI去水印 | GLM-4V多模态检测水印位置 → LaMa修复 → 羽化贴回 | 无痕迹，保账号安全 |
+| 📝 三版文案 | V1词典替换 / V2 AI微调 / V3 AI完整重写 | 3个账号3套文案，不撞车 |
+| 🔍 补充图搜索 | 百度识图+GLM-4V过滤水印 | 凑齐9张图不用愁 |
+| 📦 图片下载 | 并行下载商品原图 | 秒下 |
+
+## 🖼️ 界面预览
+
+<!-- 截图位 - 后续替换为真实运行截图 -->
+![主界面](docs/screenshot_main.png)
+
+> 🎨 蜡笔小新冬夜主题 — 小新陪你在闲鱼漫步
 
 ## 🚀 快速开始
 
-### 方式一：下载安装包（推荐，零配置）
+### 下载安装包（推荐，零配置）
 
-1. 前往 [Releases页面](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest)
+1. 👉 [前往下载](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest)
 2. 下载 `XianyuTool_Setup.exe`
-3. 双击安装，可选择安装路径
+3. 双击安装，可选安装路径
 4. 桌面出现 `XianyuTool` 快捷方式，双击运行
-5. 首次运行会弹出Chromium窗口 → 扫码登录闲鱼
-6. 后续运行自动复用登录态，无需重新扫码
+5. 首次运行弹出Chromium窗口 → 扫码登录闲鱼
+6. 以后自动复用登录，不用再扫码
 
-**不需要安装Python、Chrome或任何依赖，安装即用。**
+> **不需要安装Python、Chrome或任何依赖，装了就能用。**
 
-### 方式二：从源码运行
+### 从源码运行
 
-#### 环境要求
-- Windows 10/11
-- Python 3.8+
-- 网络环境能访问闲鱼和智谱API
-
-#### 安装依赖
 ```bash
+# 1. 安装依赖
 pip install -r requirements.txt
 python -m playwright install chromium
-```
 
-#### 配置API Key
-设置智谱API Key环境变量（免费申请：https://open.bigmodel.cn/）：
-```bash
+# 2. 配置API Key（免费申请：https://open.bigmodel.cn/）
 set ZHIPUAI_API_KEY=你的API Key
-```
 
-#### 运行
-```bash
+# 3. 运行
 python xianyu_gui.py
 ```
 
-### 打包（目录模式 + NSIS安装包）
-```bash
-# PyInstaller目录模式
-pyinstaller --noconfirm --windowed --name "XianyuTool" \
-  --icon="xianyu_icon.ico" \
-  --add-data "gui_embed.html;." \
-  --add-data "wallpaper.jpg;." \
-  --add-data "cacert.pem;." \
-  --hidden-import=playwright.async_api \
-  --hidden-import=anti_detect \
-  --hidden-import=watermark_cleaner \
-  --hidden-import=simple_lama_inpainting \
-  --hidden-import=certifi \
-  --collect-data certifi \
-  xianyu_gui.py
-
-# NSIS安装包
-makensis installer.nsi
-```
-
-## 🏗️ 项目结构
-```
-├── xianyu_gui.py          # 主入口，PyWebView GUI
-├── gui_embed.html         # 前端界面（蜡笔小新冬夜主题）
-├── xianyu_tool.py         # 主流程编排（5大模块串联）
-├── module1_parser.py      # 模块1：闲鱼链接解析
-├── module3_copywriter.py  # 模块3：三版文案生成
-├── watermark_cleaner.py   # 去水印：GLM-4V检测 + LaMa修复
-├── anti_detect.py         # 防封号：频率控制 + 人类行为模拟
-├── wallpaper.jpg          # 界面壁纸
-├── xianyu_icon.ico        # 应用图标
-└── requirements.txt       # 依赖清单
-```
-
-## 🔧 技术架构
-
-- **GUI**：PyWebView 6.2.1 + Edge WebView2 + HTML/CSS/JS
-- **浏览器自动化**：Playwright（自带Chromium，独立数据目录）
-- **去水印**：GLM-4V-Flash多模态检测（免费）+ LaMa图像修复 + OpenCV羽化贴回
-- **文案生成**：智谱GLM-4-Flash（免费不限量）
-- **打包**：PyInstaller（目录模式，启动快）
-
 ## 📋 使用流程
 
-1. 首次运行 → 弹出Chromium窗口 → 扫码登录闲鱼
-2. 后续运行 → 后台无头模式，自动复用Cookie
-3. 粘贴闲鱼商品链接 → 点击"开始处理"
-4. 等待5大模块自动完成（约60-80秒）
-5. 查看：原图 / 去水印图 / 三版文案 / 补充图 / 视频
-6. 可独立刷新文案（V1/V2/V3各自不同结果）和补充图
+```
+粘贴闲鱼链接 → 点「开始」→ 等60秒 → 搞定
+                    ↓
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+   原图9张    去水印图9张   3版文案
+                    ↓
+            补充图（独立触发）
+```
+
+- 🔄 **V1/V2/V3各有独立刷新按钮**，每次结果不同
+- 💾 **一键保存**图片和文案到自选目录
+- 🎬 支持下载商品视频
+
+## 🏗️ 技术栈
+
+| 层 | 技术 | 说明 |
+|----|------|------|
+| GUI | PyWebView + WebView2 + HTML/CSS/JS | 蜡笔小新冬夜主题 |
+| 浏览器 | Playwright（自带Chromium） | 独立数据目录，不碰日常浏览器 |
+| 去水印 | GLM-4V-Flash + LaMa + OpenCV | AI检测+修复+羽化贴回 |
+| 文案 | 智谱GLM-4-Flash | 免费不限量 |
+| 打包 | PyInstaller + NSIS | 安装包，双击即装 |
+
+## 📁 项目结构
+
+```
+├── xianyu_gui.py          # 🚪 主入口
+├── gui_embed.html         # 🎨 前端界面
+├── xianyu_tool.py         # ⚙️ 主流程编排
+├── module1_parser.py      # 🔗 链接解析（Playwright + API拦截）
+├── module3_copywriter.py  # 📝 三版文案（V1词典/V2微调/V3重写）
+├── watermark_cleaner.py   # 🧽 去水印（GLM-4V + LaMa）
+├── anti_detect.py         # 🛡️ 防封号（频率控制+人类行为模拟）
+├── installer.nsi          # 📦 NSIS安装包脚本
+└── requirements.txt       # 📋 依赖清单
+```
 
 ## ❓ 常见问题
 
-**Q: 需要安装Chrome浏览器吗？**
-A: 不需要。工具内置Playwright自带的Chromium，与日常浏览器完全独立。
+<details>
+<summary><b>需要安装Chrome吗？</b></summary>
+不需要。工具内置Playwright自带的Chromium，与日常浏览器完全独立。
+</details>
 
-**Q: 需要安装Python吗？**
-A: 下载exe版不需要。从源码运行需要Python 3.8+。
+<details>
+<summary><b>需要安装Python吗？</b></summary>
+下载exe版不需要。从源码运行需要Python 3.8+。
+</details>
 
-**Q: 首次使用要扫码登录安全吗？**
-A: 安全。登录数据保存在本地 `%LOCALAPPDATA%\XianyuTool_ChromeData`，不会上传任何地方。
+<details>
+<summary><b>首次扫码登录安全吗？</b></summary>
+安全。登录数据保存在本地 `%LOCALAPPDATA%\XianyuTool_ChromeData`，不会上传任何地方。
+</details>
+
+<details>
+<summary><b>API Key怎么申请？</b></summary>
+智谱AI开放平台（https://open.bigmodel.cn/）免费注册即可，GLM-4-Flash和GLM-4V-Flash都是免费不限量的。
+</details>
+
+<details>
+<summary><b>去水印效果怎么样？</b></summary>
+GLM-4V多模态AI定位水印区域 → LaMa图像修复算法填补 → 12px羽化贴回保证边缘过渡自然。无水印图片自动跳过（1秒完成）。
+</details>
 
 ## ⚠️ 免责声明
 
@@ -118,3 +128,13 @@ A: 安全。登录数据保存在本地 `%LOCALAPPDATA%\XianyuTool_ChromeData`�
 ## 📄 License
 
 MIT License - 可自由使用、修改、分发
+
+---
+
+<div align="center">
+
+**如果这个工具帮到了你，点个 ⭐ Star 支持一下！**
+
+[下载安装包](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest) · [报告问题](https://github.com/Qiu-Difeng/xianyu-tool/issues) · [查看源码](https://github.com/Qiu-Difeng/xianyu-tool)
+
+</div>
