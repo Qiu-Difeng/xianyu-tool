@@ -22,15 +22,15 @@
 
 ## 🖼️ 界面预览
 
-![演示动画](docs/demo.gif)
+![演示动画](docs/demo_real.gif)
 
-![主界面](docs/screenshot_main.png) | ![去水印](docs/screenshot_watermark.png)
+![商品信息](docs/real_商品信息.png) | ![去水印](docs/real_去水印.png)
 :---:|:---:
-**商品信息** | **去水印**
+**商品信息（真实数据）** | **去水印效果**
 
-![文案生成](docs/screenshot_copy.png) | ![原图浏览](docs/screenshot_images.png)
+![原图浏览](docs/real_原图.png) | ![文案生成](docs/real_文案.png)
 :---:|:---:
-**三版文案** | **原图查看**
+**原图（9张）** | **三版文案**
 
 > 🎨 蜡笔小新冬夜主题 — 小新陪你在闲鱼漫步
 
