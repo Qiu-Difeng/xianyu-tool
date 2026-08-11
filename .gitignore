@@ -33,6 +33,7 @@ debug_detail_api.*
 !docs/*.jpg
 !docs/*.gif
 docs/*.webm
+docs/demo_imgs/
 
 # 临时输出
 *.json
