@@ -25,10 +25,21 @@ import certifi
 HTML_FILE = os.path.join(WORKSPACE, "gui_embed.html")
 
 # PyInstaller打包后SSL证书路径修复
-# 优先用打包目录下的cacert.pem，其次用certifi包自带的
-_ca_bundle = os.path.join(WORKSPACE, 'cacert.pem')
-if not os.path.exists(_ca_bundle):
+# 多重兜底：打包目录cacert.pem → certifi → sys.executable目录 → None(不验证)
+_ca_bundle = None
+_candidates = []
+if getattr(sys, 'frozen', False):
+    _candidates.append(os.path.join(sys._MEIPASS, 'cacert.pem'))
+    _candidates.append(os.path.join(os.path.dirname(sys.executable), 'cacert.pem'))
+else:
+    _candidates.append(os.path.join(WORKSPACE, 'cacert.pem'))
+for _p in _candidates:
+    if _p and os.path.exists(_p):
+        _ca_bundle = _p
+        break
+if not _ca_bundle:
     try:
+        import certifi
         _ca_bundle = certifi.where()
     except Exception:
         _ca_bundle = None
@@ -86,12 +97,32 @@ class Api:
         """检查GitHub Release是否有新版。返回 dict: has_update, latest_version, download_url, current_version, message"""
         try:
             import httpx
+            import ssl
             local_ver = self._get_local_version()
+            
+            # SSL证书多重兜底
+            verify = None
+            # 1. 打包目录下的cacert.pem
+            for p in [os.path.join(WORKSPACE, 'cacert.pem'),
+                      os.path.join(sys._MEIPASS, 'cacert.pem') if getattr(sys, 'frozen', False) else None,
+                      os.path.join(os.path.dirname(sys.executable), 'cacert.pem') if getattr(sys, 'frozen', False) else None]:
+                if p and os.path.exists(p):
+                    verify = p
+                    break
+            # 2. certifi
+            if not verify:
+                try:
+                    import certifi
+                    verify = certifi.where()
+                except:
+                    pass
+            # 3. 都找不到就不验证（让请求能通）
+            
             resp = httpx.get(
                 'https://api.github.com/repos/Qiu-Difeng/xianyu-tool/releases/latest',
                 timeout=15,
                 headers={'Accept': 'application/vnd.github+json'},
-                verify=_ca_bundle
+                verify=verify
             )
             if resp.status_code != 200:
                 return {'has_update': False, 'error': 'HTTP ' + str(resp.status_code), 'current_version': local_ver}
