@@ -8,12 +8,12 @@ InstallDirRegKey HKCU "Software\XianyuTool" "InstallDir"
 RequestExecutionLevel User
 ShowInstDetails show
 
-VIProductVersion "1.3.1.0"
+VIProductVersion "1.3.2.0"
 VIAddVersionKey /LANG=2052 "ProductName" "XianyuTool"
 VIAddVersionKey /LANG=2052 "CompanyName" "Qiu-Difeng"
 VIAddVersionKey /LANG=2052 "FileDescription" "XianyuTool Setup"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "MIT License"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.3.1.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.3.2.0"
 
 !define MUI_ICON "xianyu_icon.ico"
 !define MUI_UNICON "xianyu_icon.ico"
@@ -76,6 +76,6 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInstSuccess
-    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.1"
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.2"
 FunctionEnd
 

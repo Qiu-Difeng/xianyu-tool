@@ -100,23 +100,9 @@ class Api:
             import ssl
             local_ver = self._get_local_version()
             
-            # SSL证书多重兜底
-            verify = None
-            # 1. 打包目录下的cacert.pem
-            for p in [os.path.join(WORKSPACE, 'cacert.pem'),
-                      os.path.join(sys._MEIPASS, 'cacert.pem') if getattr(sys, 'frozen', False) else None,
-                      os.path.join(os.path.dirname(sys.executable), 'cacert.pem') if getattr(sys, 'frozen', False) else None]:
-                if p and os.path.exists(p):
-                    verify = p
-                    break
-            # 2. certifi
-            if not verify:
-                try:
-                    import certifi
-                    verify = certifi.where()
-                except:
-                    pass
-            # 3. 都找不到就不验证（让请求能通）
+            # SSL证书多重兜底（用户电脑有迅游/SteamTools等代理注入根证书，certifi也可能失效）
+            # 检查更新只读GitHub公开API，不涉及敏感数据，verify=False安全
+            verify = False
             
             resp = httpx.get(
                 'https://api.github.com/repos/Qiu-Difeng/xianyu-tool/releases/latest',
