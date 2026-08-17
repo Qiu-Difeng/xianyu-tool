@@ -132,39 +132,18 @@ class Api:
             return {'has_update': False, 'error': str(e), 'current_version': self._get_local_version()}
 
     def download_update(self):
-        """下载更新安装包到临时目录，返回保存路径。"""
+        """打开浏览器下载更新安装包（程序内下载大文件易超时，改用浏览器）。"""
         try:
-            import httpx
             info = self._update_info
             if not info or not info.get('has_update'):
                 return {'success': False, 'error': '无可用更新'}
             url = info.get('download_url')
             if not url:
                 return {'success': False, 'error': '无下载链接'}
-            # 下载到临时目录
-            tmp_dir = tempfile.gettempdir()
-            filename = url.split('/')[-1].split('?')[0] or 'xianyu_tool_setup.exe'
-            dst_path = os.path.join(tmp_dir, filename)
-            # 流式下载
-            with httpx.Client(follow_redirects=True, timeout=300, verify=_ca_bundle) as client:
-                with client.stream('GET', url) as resp:
-                    resp.raise_for_status()
-                    total = int(resp.headers.get('content-length', 0))
-                    downloaded = 0
-                    with open(dst_path, 'wb') as f:
-                        for chunk in resp.iter_bytes(chunk_size=65536):
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            # 通过JS通知前端进度
-                            if total > 0 and self.window.get('window'):
-                                try:
-                                    pct = round(downloaded / total * 100, 1)
-                                    self.window['window'].evaluate_js(
-                                        'window._updateDownloadProgress && window._updateDownloadProgress(' + str(pct) + ')'
-                                    )
-                                except Exception:
-                                    pass
-            return {'success': True, 'path': dst_path}
+            # 用默认浏览器打开下载页
+            import webbrowser
+            webbrowser.open(url)
+            return {'success': True, 'path': url, 'message': '已打开浏览器下载，下载完成后请运行安装包'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

@@ -930,35 +930,31 @@ function downloadUpdate() {
   const btn = document.getElementById('downloadUpdateBtn');
   const status = document.getElementById('updateDownloadStatus');
   btn.disabled = true;
-  btn.textContent = '下载中...';
-  status.textContent = '正在下载...';
+  btn.textContent = '打开中...';
+  status.textContent = '正在打开浏览器...';
 
   pywebview.api.download_update().then(result => {
     if (result.success) {
-      status.textContent = '下载完成！';
-      btn.textContent = '✅ 下载完成';
+      status.textContent = '已打开浏览器下载';
+      btn.textContent = '✅ 已打开浏览器';
 
-      // 替换弹窗内容为下载完成提示
+      // 替换弹窗内容为提示
       const overlay = document.getElementById('updateOverlay');
       if (overlay) {
         overlay.innerHTML = `
           <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-            <div style="font-size:44px;margin-bottom:14px;">🎉</div>
-            <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">下载完成</h2>
-            <p style="color:var(--text-dim);font-size:13px;margin-bottom:8px;">安装包已保存到临时目录：</p>
-            <p style="color:var(--accent2);font-size:12px;margin-bottom:20px;word-break:break-all;font-family:monospace;">${result.path}</p>
-            <div style="display:flex;gap:10px;">
-              <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">稍后安装</button>
-              <button onclick="runInstaller('${result.path.replace(/\\/g, '\\\\')}')" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">▶️ 立即安装</button>
-            </div>
-            <p style="margin-top:14px;font-size:11px;color:var(--text-dim);">提示：安装前请先关闭当前程序</p>
+            <div style="font-size:44px;margin-bottom:14px;">🌐</div>
+            <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已打开浏览器</h2>
+            <p style="color:var(--text-dim);font-size:13px;margin-bottom:8px;line-height:1.6;">浏览器正在下载安装包，下载完成后运行安装即可。</p>
+            <p style="color:var(--accent2);font-size:12px;margin-bottom:20px;">安装前请先关闭当前程序</p>
+            <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;width:100%;">知道了</button>
           </div>
         `;
       }
     } else {
-      status.textContent = '下载失败';
+      status.textContent = '打开失败';
       btn.disabled = false;
-      btn.textContent = '⬇️ 重新下载';
+      btn.textContent = '⬇️ 重新尝试';
       status.style.color = 'var(--error)';
       status.textContent = '失败: ' + (result.error || '未知错误');
     }
