@@ -1,7 +1,4 @@
 # 🐟 闲鱼辅助工具
-# xianyu-tool
-
-## 中文
 
 xianyu-tool 是一个 AI 驱动的闲鱼卖家效率工具。
 
@@ -13,9 +10,6 @@ xianyu-tool 是一个 AI 驱动的闲鱼卖家效率工具。
 - 自动化卖家工作流程
 
 目标是降低普通用户使用 AI 的门槛，让 AI 真正进入日常电商场景。
-
-
-## English
 
 xianyu-tool is an AI-powered productivity assistant for Xianyu sellers.
 
