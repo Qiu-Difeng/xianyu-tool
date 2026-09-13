@@ -49,7 +49,7 @@ Section "Main" SecMain
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayName" "XianyuTool"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "UninstallString" '"$INSTDIR\uninstall.exe"'
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayIcon" '"$INSTDIR\XianyuTool.exe"'
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.2"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.3.5"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "Publisher" "Qiu-Difeng"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "InstallLocation" "$INSTDIR"
     
@@ -76,8 +76,9 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInstSuccess
-    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.4"
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.5"
 FunctionEnd
+
 
 
 
