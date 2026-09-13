@@ -399,9 +399,33 @@ def open_folder(path):
         os.system(f'xdg-open "{path}"')
 
 
-# ============================================================
-# 主流程
-# ============================================================
+# 全局文案线程引用（供GUI轮询）
+_copy_thread = None
+_copy_result = {}
+
+
+def is_copywriting_done():
+    """检查文案是否生成完成"""
+    return _copy_result.get('data') is not None or _copy_result.get('error') is not None
+
+
+def get_copywriting_result():
+    """获取文案生成结果，完成后自动保存到文件"""
+    if 'data' in _copy_result:
+        # 首次获取时保存到文件
+        if not hasattr(get_copywriting_result, '_saved'):
+            output_root = _copy_result.get('output_root')
+            if output_root:
+                copies_dir = os.path.join(output_root, "copies")
+                save_copies(_copy_result['data'], copies_dir)
+                get_copywriting_result._saved = True
+        return _copy_result['data']
+    return None
+
+
+def set_copywriting_output(output_root):
+    """记录输出目录，供文案完成后保存"""
+    _copy_result['output_root'] = output_root
 async def run(url, search_max=15):
     """一键全流程
     search_max: 补充图搜索数量上限
@@ -463,7 +487,16 @@ async def run(url, search_max=15):
     copy_result = {}
     def _run_copywriting():
         _t0 = time.time()
-        copy_result['data'] = generate_copywriting(parsed["title"], parsed["desc"])
+        try:
+            data = generate_copywriting(parsed["title"], parsed["desc"])
+            copy_result['data'] = data
+            # 自动保存到文件
+            copies_dir = os.path.join(output_root, "copies")
+            save_copies(data, copies_dir)
+            print(f"  ✅ 文案生成完成并已保存（{round(time.time()-_t0, 1)}秒）")
+        except Exception as e:
+            copy_result['error'] = str(e)
+            print(f"  ✗ 文案生成失败: {e}")
         copy_result['elapsed'] = round(time.time() - _t0, 1)
     copy_thread = threading.Thread(target=_run_copywriting, daemon=True)
     copy_thread.start()
@@ -488,18 +521,16 @@ async def run(url, search_max=15):
     clean_images = remove_watermarks(original_images, clean_dir)
     timings['模块3a_去水印'] = round(time.time() - t0, 1)
     
-    # === 模块3b：等待文案生成完成 ===
-    copy_thread.join()  # 等待文案生成线程完成
-    copy_elapsed = copy_result.get('elapsed', 0)
-    if 'data' in copy_result:
-        copies = copy_result['data']
-        copies_dir = os.path.join(output_root, "copies")
-        save_copies(copies, copies_dir)
-    else:
-        print("  ✗ 文案生成失败")
-        copies = None
-    timings['模块3b_文案'] = copy_elapsed
-    print(f"  文案生成完成（实际耗时: {copy_elapsed}s，与去水印并行）")
+    # === 模块3b：文案改为异步，不等待，先返回结果 ===
+    # 文案线程仍在后台跑，跑完自动写入文件
+    # 前端通过 check_copywriting_status() 轮询获取
+    global _copy_thread, _copy_result
+    _copy_thread = copy_thread
+    _copy_result = copy_result
+    _copy_result['output_root'] = output_root
+    copy_elapsed = 0
+    timings['模块3b_文案'] = 0  # 0表示仍在生成中
+    print(f"  ✅ 文案后台生成中（不阻塞主流程）...")
     
     # === 模块5：百度识图搜补充图（改为独立触发，不在主流程跑） ===
     # 补充图太慢，改为用户单独点击触发
@@ -516,11 +547,7 @@ async def run(url, search_max=15):
         "original_desc": parsed["desc"],
         "original_images": original_images,
         "clean_images": clean_images,
-        "copies": {
-            "v1": copies["v1"] if copies else "",
-            "v2": copies["v2"] if copies else "",
-            "v3": copies["v3"] if copies else "",
-        } if copies else {"v1": "", "v2": "", "v3": ""},
+        "copies": {"v1": "", "v2": "", "v3": ""},  # 文案异步生成中，初始为空
         "extra_images": [],
         "search_keyword": "",
         "video_url": parsed.get("video_url", ""),
@@ -543,10 +570,8 @@ async def run(url, search_max=15):
     print(f"  价格: {parsed['price']}")
     print(f"  原始图片: {len(original_images)}张 → {original_dir}")
     print(f"  去水印图: {len(clean_images)}张 → {clean_dir}")
-    _v1 = len(copies['v1']) if copies else 0
-    _v2 = len(copies['v2']) if copies else 0
-    _v3 = len(copies['v3']) if copies else 0
-    print(f"  文案版本: V1({_v1}字) V2({_v2}字) V3({_v3}字)")
+    # 文案异步生成，不在此处统计
+    print(f"  文案版本: 后台生成中...")
     print(f"  补充图片: {len(result['extra_images'])}张")
     print(f"{'='*60}")
     
