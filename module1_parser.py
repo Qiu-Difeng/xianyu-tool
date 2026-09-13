@@ -39,31 +39,38 @@ LOGIN_FLAG = os.path.join(CHROME_USER_DATA, 'logged_in.flag')
 # 浏览器管理（旧CDP函数已删除，改用Playwright自带Chromium）
 # ============================================================
 
-async def launch_chrome_debug(port=9222, headless=False):
+async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
     """
     启动Playwright自带Chromium（独立数据目录，不影响用户日常浏览器）
     headless=True时真正无头模式（不弹窗）
+    hide_window=True时窗口移到屏幕外（避免headless被闲鱼检测）
     返回: (playwright_instance, browser, context) 或 (None, None, None)
     """
     from playwright.async_api import async_playwright
     
     os.makedirs(CHROME_USER_DATA, exist_ok=True)
     
+    args_list = [
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-features=TranslateUI',
+        '--window-size=1280,800',
+    ]
+    if hide_window:
+        args_list.append('--window-position=-32000,-32000')
+    
     try:
         pw = await async_playwright().start()
         browser = await pw.chromium.launch_persistent_context(
             user_data_dir=CHROME_USER_DATA,
             headless=headless,
-            args=[
-                '--no-first-run',
-                '--no-default-browser-check',
-                '--disable-features=TranslateUI',
-                '--window-size=1280,800',
-            ],
+            args=args_list,
             viewport={'width': 1280, 'height': 800},
         )
         if headless:
             print(f"  ✓ 已启动Chromium（后台无头模式）")
+        elif hide_window:
+            print(f"  ✓ 已启动Chromium（后台静默模式）")
         else:
             print(f"  ✓ 已启动Chromium（独立窗口，请扫码登录）")
         return pw, browser, True
@@ -255,8 +262,9 @@ async def parse_xianyu(url, debug=False):
     if logged_in_before:
         print(f"  📋 检测到登录记录，后台静默运行...")
     
-    use_headless = logged_in_before
-    pw, context, ok = await launch_chrome_debug(headless=use_headless)
+    # 不用headless（闲鱼检测headless会拒绝返回数据），改用窗口移到屏幕外
+    use_headless = False
+    pw, context, ok = await launch_chrome_debug(headless=use_headless, hide_window=logged_in_before)
     
     if not ok:
         result["error"] = "⚠️ 无法启动浏览器，请检查Playwright安装。"
@@ -373,7 +381,7 @@ async def parse_xianyu(url, debug=False):
                 await context.close()
                 await pw.stop()
                 print(f"  切换到有界面模式，请扫码登录...")
-                pw2, context2, ok2 = await launch_chrome_debug(headless=False)
+                pw2, context2, ok2 = await launch_chrome_debug(headless=False, hide_window=False)
                 if not ok2:
                     result["error"] = "无法启动浏览器登录窗口"
                     return result
@@ -403,7 +411,7 @@ async def parse_xianyu(url, debug=False):
                         except:
                             pass
                         await asyncio.sleep(2)
-                    else:
+                    if not detail_api_body:
                         result["error"] = "登录后仍未能获取商品数据"
                     await page2.close()
                     await context2.close()
