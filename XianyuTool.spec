@@ -1,7 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [('gui_embed.html', '.'), ('wallpaper.jpg', '.'), ('cacert.pem', '.')]
+datas = [
+    ('gui_embed.html', '.'),
+    ('wallpaper.jpg', '.'),
+    ('cacert.pem', '.'),
+    ('xianyu_tool.py', '.'),
+    ('module1_parser.py', '.'),
+    ('module3_copywriter.py', '.'),
+    ('watermark_cleaner.py', '.'),
+    ('anti_detect.py', '.'),
+    ('xianyu_icon.ico', '.'),
+]
 datas += collect_data_files('certifi')
 
 
