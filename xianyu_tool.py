@@ -517,10 +517,10 @@ async def run(url, search_max=15):
         "original_images": original_images,
         "clean_images": clean_images,
         "copies": {
-            "v1": copies["v1"],
-            "v2": copies["v2"],
-            "v3": copies["v3"],
-        },
+            "v1": copies["v1"] if copies else "",
+            "v2": copies["v2"] if copies else "",
+            "v3": copies["v3"] if copies else "",
+        } if copies else {"v1": "", "v2": "", "v3": ""},
         "extra_images": [],
         "search_keyword": "",
         "video_url": parsed.get("video_url", ""),
@@ -543,7 +543,10 @@ async def run(url, search_max=15):
     print(f"  价格: {parsed['price']}")
     print(f"  原始图片: {len(original_images)}张 → {original_dir}")
     print(f"  去水印图: {len(clean_images)}张 → {clean_dir}")
-    print(f"  文案版本: V1({len(copies['v1'])}字) V2({len(copies['v2'])}字) V3({len(copies['v3'])}字)")
+    _v1 = len(copies['v1']) if copies else 0
+    _v2 = len(copies['v2']) if copies else 0
+    _v3 = len(copies['v3']) if copies else 0
+    print(f"  文案版本: V1({_v1}字) V2({_v2}字) V3({_v3}字)")
     print(f"  补充图片: {len(result['extra_images'])}张")
     print(f"{'='*60}")
     

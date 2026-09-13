@@ -78,3 +78,5 @@ record_demo.py
 # 安装包与exe产物
 XianyuTool_Setup.exe
 闲鱼辅助工具/
+
+api_config.json

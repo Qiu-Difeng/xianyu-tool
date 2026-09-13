@@ -11,6 +11,7 @@ datas = [
     ('watermark_cleaner.py', '.'),
     ('anti_detect.py', '.'),
     ('xianyu_icon.ico', '.'),
+    ('api_config.json', '.'),
 ]
 datas += collect_data_files('certifi')
 

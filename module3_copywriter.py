@@ -6,9 +6,25 @@
 import json
 import re
 import os
+import sys
 from zhipuai import ZhipuAI
 
-API_KEY = os.environ.get("ZHIPUAI_API_KEY", "在此填入你的智谱API Key")
+# API Key查找顺序：环境变量 → 打包时硬编码的fallback
+API_KEY = os.environ.get("ZHIPUAI_API_KEY", "")
+if not API_KEY:
+    # 打包时通过环境变量注入，或用户自行配置
+    API_KEY = getattr(sys, '_zhipuai_key', '') if hasattr(sys, '_zhipuai_key') else ''
+if not API_KEY:
+    # 最后兜底：尝试从同目录config文件读取
+    _cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api_config.json')
+    if os.path.exists(_cfg):
+        try:
+            with open(_cfg, 'r') as _f:
+                API_KEY = json.load(_f).get('zhipuai_key', '')
+        except Exception:
+            pass
+if not API_KEY:
+    API_KEY = "在此填入你的智谱API Key"
 CLIENT = ZhipuAI(api_key=API_KEY) if API_KEY and "在此填入" not in API_KEY else None
 MODEL = "glm-4-flash"
 
@@ -181,6 +197,8 @@ V3_PROMPT = """你是闲鱼文案专家。请基于以下商品信息【完整�
 """
 
 def call_glm(prompt, max_tokens=1200, temperature=0.7):
+    if CLIENT is None:
+        raise RuntimeError("智谱API Key未配置！请设置环境变量 ZHIPUAI_API_KEY，或在程序目录放 api_config.json")
     # 智谱API要求temperature最多2位小数
     temperature = round(temperature, 2)
     resp = CLIENT.chat.completions.create(
