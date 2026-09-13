@@ -608,11 +608,9 @@ function displayResult(result) {
   pywebview.api.get_images(result.output_dir, 'clean').then(imgs => {
     document.getElementById('pane2').innerHTML = renderImagesWithSave(imgs, 'clean');
   });
-  // 文案
-  pywebview.api.get_copies(result.output_dir).then(data => {
-    _copiesData = data;
-    document.getElementById('pane3').innerHTML = renderCopies(data);
-  });
+  // 文案 - 先显示生成中，轮询检查状态
+  document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji spinning">📝</span><p>文案后台生成中，预计30-60秒...</p></div>';
+  startCopyPolling(result.output_dir);
   // 补充图
   document.getElementById('pane4').innerHTML = '<div class="empty"><span class="emoji">🔍</span><p>点击下方按钮搜索补充图</p>' +
     '<button class="btn-refresh" id="searchSupplementBtn" onclick="searchSupplementImages()" style="margin-top:12px;">🔍 搜索补充图</button></div>';
@@ -654,6 +652,37 @@ function saveImages(subfolder) {
     if (r.success) addLog('💾 已保存 ' + r.saved + ' 个文件到所选目录', 'success');
     else if (r.error !== '已取消') addLog('💾 保存失败: ' + r.error, 'error');
   });
+}
+
+let _copyPollTimer = null;
+function startCopyPolling(outputDir) {
+  if (_copyPollTimer) clearInterval(_copyPollTimer);
+  let pollCount = 0;
+  _copyPollTimer = setInterval(() => {
+    pollCount++;
+    pywebview.api.check_copy_status(outputDir).then(data => {
+      if (data && data.done === false) return; // 还没完成
+      if (data && data.error) {
+        clearInterval(_copyPollTimer);
+        _copyPollTimer = null;
+        document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji">📝</span><p>文案生成失败: ' + data.error + '</p></div>';
+        return;
+      }
+      if (data && data.versions && data.versions.length > 0) {
+        clearInterval(_copyPollTimer);
+        _copyPollTimer = null;
+        _copiesData = data;
+        document.getElementById('pane3').innerHTML = renderCopies(data);
+        addLog('📝 文案生成完成！V1/V2/V3已就绪', 'success');
+      }
+    });
+    // 超时保护：5分钟
+    if (pollCount > 100) {
+      clearInterval(_copyPollTimer);
+      _copyPollTimer = null;
+      document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji">📝</span><p>文案生成超时，请点击刷新重试</p></div>';
+    }
+  }, 3000); // 每3秒检查一次
 }
 
 function renderCopies(data) {

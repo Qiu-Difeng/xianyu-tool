@@ -251,6 +251,24 @@ class Api:
         ]
         return {"versions": versions, "title": data.get("title", "")}
 
+    def check_copy_status(self, output_dir):
+        """检查文案是否生成完成，完成后返回文案数据"""
+        try:
+            from xianyu_tool import _copy_result
+            done = 'data' in _copy_result or 'error' in _copy_result
+            if not done:
+                return {"done": False}
+            if 'error' in _copy_result:
+                return {"done": True, "error": _copy_result['error']}
+            # 完成了，读取保存的文案
+            return self.get_copies(output_dir)
+        except Exception:
+            # fallback：直接检查文件是否存在
+            copies_file = os.path.join(output_dir, "copies", "copies.json")
+            if os.path.exists(copies_file):
+                return self.get_copies(output_dir)
+            return {"done": False}
+
     def regenerate_copy(self, output_dir, version, custom_prompt=None):
         """重新生成指定版本的文案；V3支持自定义提示词"""
         try:
