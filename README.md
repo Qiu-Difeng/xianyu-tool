@@ -1,5 +1,26 @@
 # 🐟 闲鱼辅助工具
 
+xianyu-tool 是一个 AI 驱动的闲鱼卖家效率工具。
+
+通过人工智能技术帮助卖家完成：
+- AI 商品图片处理
+- AI 多版本商品文案生成
+- 商品链接解析
+- 补充图片搜索
+- 自动化卖家工作流程
+
+目标是降低普通用户使用 AI 的门槛，让 AI 真正进入日常电商场景。
+
+xianyu-tool is an AI-powered productivity assistant for Xianyu sellers.
+
+It helps users improve marketplace workflows through:
+- AI image processing
+- LLM-based product copy generation
+- Product link parsing
+- Image search assistance
+- AI-powered automation workflows
+
+The goal is to make AI accessible and useful for everyday e-commerce users.
 > 闲鱼卖家效率神器 — 一键解析商品、AI去水印、智能改写文案、搜补充图
 
 ## 🎯 解决什么问题？
