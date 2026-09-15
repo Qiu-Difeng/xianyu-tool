@@ -410,17 +410,8 @@ def is_copywriting_done():
 
 
 def get_copywriting_result():
-    """获取文案生成结果，完成后自动保存到文件"""
-    if 'data' in _copy_result:
-        # 首次获取时保存到文件
-        if not hasattr(get_copywriting_result, '_saved'):
-            output_root = _copy_result.get('output_root')
-            if output_root:
-                copies_dir = os.path.join(output_root, "copies")
-                save_copies(_copy_result['data'], copies_dir)
-                get_copywriting_result._saved = True
-        return _copy_result['data']
-    return None
+    """获取文案生成结果（保存由后台线程自动完成）"""
+    return _copy_result.get('data')
 
 
 def set_copywriting_output(output_root):
@@ -493,6 +484,17 @@ async def run(url, search_max=15):
             # 自动保存到文件
             copies_dir = os.path.join(output_root, "copies")
             save_copies(data, copies_dir)
+            # 同时更新 result.json 中的 copies 字段（持久化）
+            try:
+                result_json_path = os.path.join(output_root, "result.json")
+                if os.path.exists(result_json_path):
+                    with open(result_json_path, "r", encoding="utf-8") as f:
+                        result_data = json.load(f)
+                    result_data["copies"] = data
+                    with open(result_json_path, "w", encoding="utf-8") as f:
+                        json.dump(result_data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"  更新 result.json 失败: {e}")
             print(f"  ✅ 文案生成完成并已保存（{round(time.time()-_t0, 1)}秒）")
         except Exception as e:
             copy_result['error'] = str(e)
