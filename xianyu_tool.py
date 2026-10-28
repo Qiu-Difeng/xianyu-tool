@@ -478,14 +478,24 @@ async def run(url, search_max=15):
             copies_dir = os.path.join(output_root, "copies")
             save_copies(data, copies_dir)
             # 同时更新 result.json 中的 copies 字段（持久化）
+            # 注意：主线程要等图片下载 + 去水印完成后才写 result.json，
+            # 而文案往往先完成。原实现只读一次，文件不存在就永久跳过，
+            # 导致 result.json 里的 copies 永远是空的。这里等待文件出现后再补写。
             try:
                 result_json_path = os.path.join(output_root, "result.json")
+                for _ in range(120):
+                    if os.path.exists(result_json_path):
+                        break
+                    time.sleep(1)
                 if os.path.exists(result_json_path):
                     with open(result_json_path, "r", encoding="utf-8") as f:
                         result_data = json.load(f)
                     result_data["copies"] = data
                     with open(result_json_path, "w", encoding="utf-8") as f:
                         json.dump(result_data, f, ensure_ascii=False, indent=2)
+                    print(f"  ✅ result.json 已写入文案")
+                else:
+                    print(f"  ⚠ result.json 未生成，文案仅保存在 copies/ 目录")
             except Exception as e:
                 print(f"  更新 result.json 失败: {e}")
             print(f"  ✅ 文案生成完成并已保存（{round(time.time()-_t0, 1)}秒）")
@@ -542,7 +552,8 @@ async def run(url, search_max=15):
         "original_desc": parsed["desc"],
         "original_images": original_images,
         "clean_images": clean_images,
-        "copies": {"v1": "", "v2": "", "v3": ""},  # 文案异步生成中，初始为空
+        # 文案若已生成则直接带上，否则留空由文案线程稍后补写
+        "copies": (copy_result.get('data') or {"v1": "", "v2": "", "v3": ""}),
         "extra_images": [],
         "search_keyword": "",
         "video_url": parsed.get("video_url", ""),
