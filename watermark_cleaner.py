@@ -7,7 +7,6 @@ import cv2
 import numpy as np
 import os
 import base64
-import json
 import threading
 from PIL import Image
 from io import BytesIO

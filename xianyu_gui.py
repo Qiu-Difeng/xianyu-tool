@@ -19,7 +19,6 @@ else:
 sys.path.insert(0, WORKSPACE)
 
 import webview
-import ssl
 import certifi
 
 HTML_FILE = os.path.join(WORKSPACE, "gui_embed.html")
@@ -39,7 +38,6 @@ for _p in _candidates:
         break
 if not _ca_bundle:
     try:
-        import certifi
         _ca_bundle = certifi.where()
     except Exception:
         _ca_bundle = None
@@ -47,14 +45,8 @@ if _ca_bundle and os.path.exists(_ca_bundle):
     os.environ['SSL_CERT_FILE'] = _ca_bundle
     os.environ['REQUESTS_CA_BUNDLE'] = _ca_bundle
 
-# 创建全局SSL上下文
-_ssl_context = ssl.create_default_context()
-if _ca_bundle and os.path.exists(_ca_bundle):
-    _ssl_context.load_verify_locations(_ca_bundle)
-
-# certifi的where()可能返回打包后不存在的路径，统一用_ca_bundle
-def _get_ca_bundle():
-    return _ca_bundle
+# 说明：certifi.where() 可能返回打包后不存在的路径，统一以 _ca_bundle 为准，
+# 需要证书路径的调用方直接读这个变量。
 
 
 class Api:

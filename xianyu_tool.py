@@ -259,7 +259,7 @@ def remove_watermarks(image_paths, output_dir):
 # ============================================================
 # 模块3b：AI文案改写
 # ============================================================
-from module3_copywriter import generate_versions, regenerate_v1, regenerate_v2, regenerate_v3, filter_banned, post_process
+from module3_copywriter import generate_versions, regenerate_v1, regenerate_v2, regenerate_v3, filter_banned
 
 def generate_copywriting(title, desc):
     print(f"\n{'='*60}")
@@ -380,36 +380,11 @@ def save_single_copy(title, text, version, output_dir):
 
 
 # ============================================================
-# 打开文件夹
-# ============================================================
-def open_folder(path):
-    """在资源管理器中打开文件夹"""
-    if sys.platform == 'win32':
-        os.startfile(path)
-    elif sys.platform == 'darwin':
-        os.system(f'open "{path}"')
-    else:
-        os.system(f'xdg-open "{path}"')
-
-
 # 全局文案线程引用（供GUI轮询）
 _copy_thread = None
 _copy_result = {}
 
 
-def is_copywriting_done():
-    """检查文案是否生成完成"""
-    return _copy_result.get('data') is not None or _copy_result.get('error') is not None
-
-
-def get_copywriting_result():
-    """获取文案生成结果（保存由后台线程自动完成）"""
-    return _copy_result.get('data')
-
-
-def set_copywriting_output(output_root):
-    """记录输出目录，供文案完成后保存"""
-    _copy_result['output_root'] = output_root
 async def run(url, search_max=15):
     """一键全流程
     search_max: 补充图搜索数量上限
