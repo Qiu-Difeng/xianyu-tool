@@ -59,6 +59,7 @@ async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
     if hide_window:
         args_list.append('--window-position=-32000,-32000')
     
+    pw = None
     try:
         pw = await async_playwright().start()
         browser = await pw.chromium.launch_persistent_context(
@@ -76,6 +77,12 @@ async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
         return pw, browser, True
     except Exception as e:
         print(f"  ✗ Chromium启动失败: {e}")
+        # 启动失败时必须停掉已创建的 playwright 实例，否则 node 子进程残留
+        try:
+            if pw is not None:
+                await pw.stop()
+        except Exception:
+            pass
         return None, None, False
 
 
@@ -307,6 +314,25 @@ async def parse_xianyu(url, debug=False):
     page = await context.new_page()
     page.on("response", on_response)
 
+    async def _release():
+        """统一释放浏览器资源（可重复调用，异常静默）
+
+        原实现在多处 early return 前不关闭 context / pw，
+        而 Chromium 用的是持久化 user_data_dir，
+        残留进程会让下次启动报"用户数据目录已被占用"，
+        表现为用户第二次运行就卡死。
+        """
+        for obj in (page, context, pw):
+            if obj is None:
+                continue
+            try:
+                if hasattr(obj, 'close'):
+                    await obj.close()
+                elif hasattr(obj, 'stop'):
+                    await obj.stop()
+            except Exception:
+                pass
+
     # === 防封号：频率控制 ===
     try:
         from anti_detect import get_limiter, check_risk_indicators, human_like_scroll, random_mouse_move
@@ -314,6 +340,7 @@ async def parse_xianyu(url, debug=False):
         wait_sec, reason = limiter.check()
         if reason and '限额' in reason:
             result['error'] = reason
+            await _release()
             return result
         await limiter.wait()
     except ImportError:
@@ -384,6 +411,7 @@ async def parse_xianyu(url, debug=False):
                 pw2, context2, ok2 = await launch_chrome_debug(headless=False, hide_window=False)
                 if not ok2:
                     result["error"] = "无法启动浏览器登录窗口"
+                    await _release()
                     return result
                 page2 = await context2.new_page()
                 page2.on("response", on_response)
@@ -423,6 +451,7 @@ async def parse_xianyu(url, debug=False):
                     await pw2.stop()
                 # 如果拿到了数据，继续后续解析
                 if not detail_api_body:
+                    await _release()
                     return result
             else:
                 # 有界面模式，直接弹窗扫码
@@ -437,7 +466,7 @@ async def parse_xianyu(url, debug=False):
                         mark_logged_in()
                     else:
                         result["error"] = "登录超时。请在弹出的Chrome窗口中完成扫码登录后重试。"
-                        await page.close()
+                        await _release()
                         return result
 
     if not goto_parse:
@@ -470,6 +499,7 @@ async def parse_xianyu(url, debug=False):
                 print(f"  ⚠ 检测到风控拦截: {risk_kw}")
                 result['error'] = f"闲鱼风控拦截（{risk_kw}），请稍后再试或更换网络环境"
                 limiter.record()
+                await _release()
                 return result
         except:
             pass
@@ -494,7 +524,7 @@ async def parse_xianyu(url, debug=False):
                         await asyncio.sleep(0.5)
                 else:
                     result["error"] = "登录超时"
-                    await page.close()
+                    await _release()
                     return result
 
     # 再轮询等一下（上面可能已拿到，这里快速确认）
@@ -600,9 +630,7 @@ async def parse_xianyu(url, debug=False):
     else:
         result["error"] = "未能提取商品信息。可能原因：1) 未登录闲鱼 2) 商品已下架 3) 页面加载超时"
 
-    await page.close()
-    await context.close()
-    await pw.stop()
+    await _release()
 
     return result
 
