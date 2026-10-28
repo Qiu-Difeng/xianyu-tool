@@ -28,8 +28,13 @@ a = Analysis(
     runtime_hooks=[],
     # matplotlib / PyQt* 均未被本程序使用（界面是 pywebview + EdgeChromium），
     # 此前被打进包体，是 811MB 体积的主要来源之一。
+    # jedi / IPython / jupyter 是交互式环境生态，Pythonwin 是 pywin32 的 IDE 组件，
+    # 本程序都不使用，各占 6MB 以上。
     # 注意不要排除 tkinter：保存图片/视频的文件选择框用的就是 tkinter。
-    excludes=['matplotlib', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6'],
+    excludes=['matplotlib', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6',
+              'jedi', 'IPython', 'ipykernel', 'notebook',
+              'jupyter', 'jupyter_client', 'jupyter_core',
+              'nbformat', 'nbconvert', 'Pythonwin', 'win32ui'],
     noarchive=False,
     optimize=0,
 )
