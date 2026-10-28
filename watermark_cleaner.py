@@ -8,18 +8,46 @@ import numpy as np
 import os
 import base64
 import json
+import threading
 from PIL import Image
 from io import BytesIO
 
 # LaMa模型单例（避免重复加载）
+# 加锁防止多线程同时 check-then-set 各加载一份模型（每份约 200MB+）
 _lama_instance = None
+_lama_lock = threading.Lock()
+_lama_unavailable = False
+
 
 def get_lama():
-    global _lama_instance
-    if _lama_instance is None:
-        from simple_lama_inpainting import SimpleLama
-        _lama_instance = SimpleLama()
+    """获取 LaMa 单例。不可用时返回 None（调用方需降级处理）"""
+    global _lama_instance, _lama_unavailable
+    if _lama_instance is not None:
+        return _lama_instance
+    if _lama_unavailable:
+        return None
+    with _lama_lock:
+        # 双重检查：等锁期间可能已被其他线程加载/判定失败
+        if _lama_instance is not None:
+            return _lama_instance
+        if _lama_unavailable:
+            return None
+        try:
+            from simple_lama_inpainting import SimpleLama
+            _lama_instance = SimpleLama()
+        except Exception as e:
+            print(f"    ⚠ LaMa 不可用（{type(e).__name__}: {e}），降级使用 OpenCV inpaint")
+            _lama_unavailable = True
+            return None
     return _lama_instance
+
+
+def _cv2_inpaint(img_bgr, mask):
+    """LaMa 不可用时的兜底修复：OpenCV Telea 算法
+
+    效果弱于 LaMa，但零额外依赖，打包体积无增长，保证功能不会静默失效。
+    """
+    return cv2.inpaint(img_bgr, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
 
 
 def _img_to_base64(img_path):
@@ -169,32 +197,34 @@ def process_single_image(img_path, output_path, reference_image=None):
             x2 = min(w, x2 + pad)
             regions_px.append((y1, y2, x1, x2))
 
-        # 步骤2：LaMa修复
-        lama = get_lama()
-
-        # 创建包含所有水印区域的mask
+        # 步骤2：构建修复掩膜（包含所有水印区域）
         mask = np.zeros((h, w), dtype=np.uint8)
         for y1, y2, x1, x2 in regions_px:
             mask[y1:y2, x1:x2] = 255
         mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=2)
 
-        # 第1轮LaMa
-        pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        result = lama(pil_img, Image.fromarray(mask))
-        result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
+        lama = get_lama()
+        if lama is not None:
+            # 第1轮LaMa
+            pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            result = lama(pil_img, Image.fromarray(mask))
+            result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
 
-        # 第2轮LaMa（缩小每个区域的mask，修复残留）
-        mask2 = np.zeros((h, w), dtype=np.uint8)
-        for y1, y2, x1, x2 in regions_px:
-            margin_y = int((y2 - y1) * 0.1)
-            margin_x = int((x2 - x1) * 0.1)
-            mask2[max(0, y1 + margin_y):min(h, y2 - margin_y),
-                  max(0, x1 + margin_x):min(w, x2 - margin_x)] = 255
-        mask2 = cv2.dilate(mask2, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
+            # 第2轮LaMa（缩小每个区域的mask，修复残留）
+            mask2 = np.zeros((h, w), dtype=np.uint8)
+            for y1, y2, x1, x2 in regions_px:
+                margin_y = int((y2 - y1) * 0.1)
+                margin_x = int((x2 - x1) * 0.1)
+                mask2[max(0, y1 + margin_y):min(h, y2 - margin_y),
+                      max(0, x1 + margin_x):min(w, x2 - margin_x)] = 255
+            mask2 = cv2.dilate(mask2, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
 
-        pil_result = Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
-        result = lama(pil_result, Image.fromarray(mask2))
-        result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
+            pil_result = Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
+            result = lama(pil_result, Image.fromarray(mask2))
+            result = cv2.cvtColor(np.array(result), cv2.COLOR_RGB2BGR)
+        else:
+            # 降级路径：OpenCV inpaint 兜底，保证去水印不会静默失效
+            result = _cv2_inpaint(img, mask)
 
         # 步骤3：羽化贴回每个区域（保护关键区域不变形）
         for y1, y2, x1, x2 in regions_px:
