@@ -9,24 +9,71 @@ import os
 import sys
 from zhipuai import ZhipuAI
 
-# API Key查找顺序：环境变量 → 打包时硬编码的fallback
-API_KEY = os.environ.get("ZHIPUAI_API_KEY", "")
-if not API_KEY:
-    # 打包时通过环境变量注入，或用户自行配置
-    API_KEY = getattr(sys, '_zhipuai_key', '') if hasattr(sys, '_zhipuai_key') else ''
-if not API_KEY:
-    # 最后兜底：尝试从同目录config文件读取
-    _cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api_config.json')
-    if os.path.exists(_cfg):
-        try:
-            with open(_cfg, 'r') as _f:
-                API_KEY = json.load(_f).get('zhipuai_key', '')
-        except Exception:
-            pass
-if not API_KEY:
-    API_KEY = "在此填入你的智谱API Key"
-CLIENT = ZhipuAI(api_key=API_KEY) if API_KEY and "在此填入" not in API_KEY else None
 MODEL = "glm-4-flash"
+
+# ============================================================
+# API Key 解析
+# 优先级：环境变量 → 打包注入 → 用户配置(%LOCALAPPDATA%\XianyuTool\api_config.json)
+#        → 程序同目录 api_config.json（开发用）
+# 用户配置文件不打进安装包，避免分发时泄露开发者自己的 key
+# ============================================================
+def _user_config_dir():
+    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+    return os.path.join(base, 'XianyuTool')
+
+
+def _read_key_from_file(path):
+    try:
+        if not os.path.exists(path):
+            return ''
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        key = (data.get('zhipuai_key') or '').strip()
+        if key and '在此填入' not in key:
+            return key
+    except Exception:
+        pass
+    return ''
+
+
+def resolve_api_key():
+    """按优先级解析智谱 API Key，返回 (key, 来源说明)"""
+    env_key = (os.environ.get('ZHIPUAI_API_KEY') or '').strip()
+    if env_key and '在此填入' not in env_key:
+        return env_key, '环境变量 ZHIPUAI_API_KEY'
+
+    injected = getattr(sys, '_zhipuai_key', '') or ''
+    if injected and '在此填入' not in injected:
+        return injected, '打包注入'
+
+    for path in (os.path.join(_user_config_dir(), 'api_config.json'),
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api_config.json')):
+        key = _read_key_from_file(path)
+        if key:
+            return key, path
+
+    return '', '未配置'
+
+
+API_KEY, API_KEY_SOURCE = resolve_api_key()
+CLIENT = ZhipuAI(api_key=API_KEY) if API_KEY else None
+
+
+def get_client():
+    """获取智谱客户端。
+
+    若首次调用时尚未配置（CLIENT 为 None），会重新解析一次，
+    这样用户在运行过程中补好 api_config.json 后无需重启程序。
+    """
+    global CLIENT, API_KEY, API_KEY_SOURCE
+    if CLIENT is not None:
+        return CLIENT
+    key, source = resolve_api_key()
+    if key:
+        API_KEY, API_KEY_SOURCE = key, source
+        CLIENT = ZhipuAI(api_key=key)
+        print(f"  ✅ 已加载智谱 API Key（来源：{source}）")
+    return CLIENT
 
 # ============================================================
 # V1 词典
@@ -202,11 +249,15 @@ V3_PROMPT = """你是闲鱼文案专家。请基于以下商品信息【完整�
 """
 
 def call_glm(prompt, max_tokens=1200, temperature=0.7):
-    if CLIENT is None:
-        raise RuntimeError("智谱API Key未配置！请设置环境变量 ZHIPUAI_API_KEY，或在程序目录放 api_config.json")
+    client = get_client()
+    if client is None:
+        raise RuntimeError(
+            "智谱API Key未配置！请在 " + os.path.join(_user_config_dir(), 'api_config.json') +
+            " 写入 {\"zhipuai_key\": \"你的Key\"}，或设置环境变量 ZHIPUAI_API_KEY"
+        )
     # 智谱API要求temperature最多2位小数
     temperature = round(temperature, 2)
-    resp = CLIENT.chat.completions.create(
+    resp = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=max_tokens,

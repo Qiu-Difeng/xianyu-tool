@@ -56,6 +56,31 @@ def _img_to_base64(img_path):
         return base64.b64encode(f.read()).decode()
 
 
+def _get_zhipu_client():
+    """获取智谱客户端，复用 module3 的统一 Key 解析顺序。
+
+    原实现只读环境变量 ZHIPUAI_API_KEY，用户把 key 放在 api_config.json 时
+    这里永远拿不到，水印检测会一直返回 None（等于检测功能不可用）。
+    """
+    try:
+        from module3_copywriter import get_client
+        client = get_client()
+        if client is not None:
+            return client
+    except Exception:
+        pass
+
+    # module3 不可用（极端情况）时退回环境变量
+    api_key = (os.environ.get("ZHIPUAI_API_KEY") or "").strip()
+    if not api_key or "在此填入" in api_key:
+        return None
+    try:
+        from zhipuai import ZhipuAI
+        return ZhipuAI(api_key=api_key)
+    except Exception:
+        return None
+
+
 def _parse_watermark_answer(answer):
     """解析 GLM 的回答，判断是否含水印。
 
@@ -97,11 +122,10 @@ def _detect_watermark_region_glm4v(img_path):
     except:
         return None, None
 
-    api_key = os.environ.get("ZHIPUAI_API_KEY", "在此填入你的智谱API Key")
-    if not api_key or "在此填入" in api_key:
+    client = _get_zhipu_client()
+    if client is None:
         print("  ⚠ 未配置智谱API Key，跳过水印检测")
         return None, None
-    client = ZhipuAI(api_key=api_key)
     img_b64 = _img_to_base64(img_path)
 
     try:
@@ -278,16 +302,10 @@ def process_single_image(img_path, output_path, reference_image=None):
 
 def check_watermark(img_path):
     """快速检测单张图片是否有水印（用于批量预筛）"""
-    try:
-        from zhipuai import ZhipuAI
-    except:
-        return None
-
-    api_key = os.environ.get("ZHIPUAI_API_KEY", "在此填入你的智谱API Key")
-    if not api_key or "在此填入" in api_key:
+    client = _get_zhipu_client()
+    if client is None:
         print("  ⚠ 未配置智谱API Key，跳过水印检测")
         return None
-    client = ZhipuAI(api_key=api_key)
     img_b64 = _img_to_base64(img_path)
 
     try:
