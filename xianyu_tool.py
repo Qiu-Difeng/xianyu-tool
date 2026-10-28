@@ -196,14 +196,18 @@ def remove_watermarks(image_paths, output_dir):
             print(f"    {img_name}: 检测失败，保守处理")
             need_process.append(img_path)
     
+    # 输入路径 -> 输出路径，最后按原始顺序组装，避免 no_watermark 与
+    # need_process 分两批 append、且线程池 as_completed 乱序导致结果错位
+    output_map = {}
+
     for img_path in no_watermark:
         img_name = os.path.basename(img_path)
         dst = os.path.join(output_dir, img_name)
         shutil.copy2(img_path, dst)
-        clean_images.append(dst)
+        output_map[img_path] = dst
     
     if need_process:
-        print(f"\n  {len(need_process)}张需要去水印，启动LaMa修复...")
+        print(f"\n  {len(need_process)}张需要去水印，启动修复...")
         try:
             from watermark_cleaner import process_single_image
             
@@ -220,7 +224,7 @@ def remove_watermarks(image_paths, output_dir):
                     else:
                         shutil.copy2(img_path, out_path)
                         return (img_path, out_path, False)
-                except Exception as e:
+                except Exception:
                     shutil.copy2(img_path, out_path)
                     return (img_path, out_path, False)
             
@@ -230,19 +234,25 @@ def remove_watermarks(image_paths, output_dir):
                     img_path = futures[future]
                     img_name = os.path.basename(img_path)
                     orig_path, result_path, success = future.result()
-                    clean_images.append(result_path)
+                    output_map[img_path] = result_path
                     print(f"    {'✓' if success else '⚠(用原图)'} {img_name}")
         except ImportError:
-            print(f"  LaMa模块未导入，有水印图片暂用原图")
+            print(f"  去水印模块未导入，有水印图片暂用原图")
             for img_path in need_process:
                 img_name = os.path.basename(img_path)
                 dst = os.path.join(output_dir, img_name)
                 shutil.copy2(img_path, dst)
-                clean_images.append(dst)
+                output_map[img_path] = dst
     else:
         print(f"  所有图片均无水印，无需处理")
-    
-    print(f"  去水印完成: {len(clean_images)}张")
+
+    # 按输入顺序组装，顺序与 original/ 目录一致
+    for img_path in image_paths:
+        dst = output_map.get(img_path)
+        if dst and os.path.exists(dst):
+            clean_images.append(dst)
+
+    print(f"  去水印完成: {len(clean_images)}/{len(image_paths)}张")
     return clean_images
 
 
