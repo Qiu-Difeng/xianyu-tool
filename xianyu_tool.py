@@ -159,59 +159,42 @@ def remove_watermarks(image_paths, output_dir):
     print(f"模块3a：去水印（{len(image_paths)}张）")
     print(f"{'='*60}")
     
-    print(f"  快速预检：先检测第1张图是否有水印...")
+    print(f"  逐张检测水印（{len(image_paths)}张，并发3）...")
     need_process = []
     no_watermark = []
     
     from concurrent.futures import ThreadPoolExecutor, as_completed
     
-    # 快速预检：先检测第1张图
-    first_check = _check_watermark_with_glm4v(image_paths[0])
-    
-    if first_check is False:
-        # 第1张没水印，大概率都没有，直接全跳过
-        print(f"    {os.path.basename(image_paths[0])}: 无水印，跳过全部图片检测")
-        for img_path in image_paths:
-            img_name = os.path.basename(img_path)
-            dst = os.path.join(output_dir, img_name)
-            shutil.copy2(img_path, dst)
-            clean_images.append(dst)
-        print(f"  ✅ 全部 {len(image_paths)} 张无水印，直接复制（跳过检测）")
-        return clean_images
-    
-    # 第1张有水印，检测剩余图片（并行）
-    if first_check is True:
-        print(f"    {os.path.basename(image_paths[0])}: 有水印")
-        need_process.append(image_paths[0])
-    else:
-        print(f"    {os.path.basename(image_paths[0])}: 检测失败")
-        need_process.append(image_paths[0])
-    
-    # 检测剩余图片（如果只有1张就不用检测了）
-    if len(image_paths) > 1:
-        def _check_one(img_path):
-            img_name = os.path.basename(img_path)
+    def _check_one(img_path):
+        """检测单张；GLM 并发限流时易失败，失败重试一次"""
+        has_wm = _check_watermark_with_glm4v(img_path)
+        if has_wm is None:
             has_wm = _check_watermark_with_glm4v(img_path)
-            return (img_path, img_name, has_wm)
-        
-        results_map = {}
-        with ThreadPoolExecutor(max_workers=6) as executor:
-            futures = {executor.submit(_check_one, img): img for img in image_paths[1:]}
-            for future in as_completed(futures):
-                img_path, img_name, has_wm = future.result()
-                results_map[img_path] = (img_name, has_wm)
-        
-        for img_path in image_paths[1:]:
-            img_name, has_wm = results_map[img_path]
-            if has_wm is True:
-                print(f"    {img_name}: 有水印，需处理")
-                need_process.append(img_path)
-            elif has_wm is False:
-                print(f"    {img_name}: 无水印，跳过")
-                no_watermark.append(img_path)
-            else:
-                print(f"    {img_name}: 检测失败，保守处理")
-                need_process.append(img_path)
+        return has_wm
+    
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(_check_one, p): p for p in image_paths}
+        for future in as_completed(futures):
+            p = futures[future]
+            try:
+                results_map[p] = future.result()
+            except Exception:
+                results_map[p] = None
+    
+    # 按原始顺序归集，便于用户对照原图
+    for img_path in image_paths:
+        img_name = os.path.basename(img_path)
+        has_wm = results_map.get(img_path)
+        if has_wm is True:
+            print(f"    {img_name}: 有水印，需处理")
+            need_process.append(img_path)
+        elif has_wm is False:
+            print(f"    {img_name}: 无水印，跳过")
+            no_watermark.append(img_path)
+        else:
+            print(f"    {img_name}: 检测失败，保守处理")
+            need_process.append(img_path)
     
     for img_path in no_watermark:
         img_name = os.path.basename(img_path)

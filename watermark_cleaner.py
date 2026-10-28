@@ -56,6 +56,37 @@ def _img_to_base64(img_path):
         return base64.b64encode(f.read()).decode()
 
 
+def _parse_watermark_answer(answer):
+    """解析 GLM 的回答，判断是否含水印。
+
+    返回 True(有) / False(无) / None(无法判断)
+
+    注意：不能用 `'有' in answer` —— "没有水印"、"无水印" 都含有"有"字，
+    会把干净的图误判成有水印，进而用默认区域把图片抹坏。
+    """
+    if not answer:
+        return None
+    text = answer.strip()
+
+    # 1. 明确的否定短语（优先于单个"有"字判断）
+    if '无水印' in text or '没有水印' in text:
+        return False
+    # 2. 明确的肯定短语
+    if '有水印' in text:
+        return True
+    # 3. 其他否定表述
+    if '没有' in text or '未见' in text or '未发现' in text or '不含' in text or '看不到' in text:
+        return False
+    if text.startswith('无') or text.startswith('没'):
+        return False
+    # 4. 到这里已排除否定，含"有"即可判为有水印
+    #    （GLM 常复述问法，如"图上有半透明水印文字"，以"图"开头但确实有水印）
+    if '有' in text:
+        return True
+
+    return None
+
+
 def _detect_watermark_region_glm4v(img_path):
     """
     用GLM-4V-Flash检测水印文字位置
@@ -86,7 +117,8 @@ def _detect_watermark_region_glm4v(img_path):
         )
         answer = resp.choices[0].message.content.strip()
 
-        if '无水印' in answer:
+        has_wm = _parse_watermark_answer(answer)
+        if has_wm is False:
             return False, None  # 确认无水印
 
         # 尝试提取多组坐标（分号分隔）
@@ -104,8 +136,8 @@ def _detect_watermark_region_glm4v(img_path):
         if regions:
             return True, regions  # 返回多区域列表
 
-        # 有水印但没给出合法坐标，用默认区域
-        if '有' in answer and '无水印' not in answer:
+        # 判断为有水印但没给出合法坐标，用默认区域
+        if has_wm is True:
             return True, [(30, 55, 5, 92)]  # 默认水印区域
 
         return None, None  # 不确定
@@ -270,7 +302,7 @@ def check_watermark(img_path):
             }],
         )
         answer = resp.choices[0].message.content.strip()
-        return '有' in answer
+        return _parse_watermark_answer(answer)
     except Exception as e:
         print(f"    GLM-4V检测失败: {e}")
         return None
