@@ -324,7 +324,12 @@ async def search_extra_images(product_image, output_dir, max_images=15):
     downloaded = await download_images(urls, search_dir)
     
     # 传入参考图做同款检测
-    clean, watermarked = filter_watermarked_images(downloaded, reference_image=product_image)
+    # filter_watermarked_images 是同步函数（内部要读图、算相似度、调模型），
+    # 直接在 async 函数里调用会阻塞事件循环，改到线程池里执行
+    loop = asyncio.get_event_loop()
+    clean, watermarked = await loop.run_in_executor(
+        None, lambda: filter_watermarked_images(downloaded, reference_image=product_image)
+    )
     
     os.makedirs(output_dir, exist_ok=True)
     # 清理旧图片
