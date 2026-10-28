@@ -1,5 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
 from PyInstaller.utils.hooks import collect_data_files
+
+# VC++ 运行库（app-local 部署）。
+# cv2.pyd 和 python38.dll 都依赖 vcruntime140 / msvcp140，
+# 没装 VC++ Redistributable 的电脑会直接报「缺少 vcruntime140.dll」启动失败。
+# 微软允许随应用分发这些运行库，三个文件合计约 1MB。
+binaries = []
+for _dll in ('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll'):
+    for _base in (r'C:\Windows\System32', os.path.dirname(sys.executable)):
+        _p = os.path.join(_base, _dll)
+        if os.path.exists(_p):
+            binaries.append((_p, '.'))
+            break
 
 # 只打包程序真正需要的运行时资源。
 # 注意：
@@ -20,7 +34,7 @@ datas += collect_data_files('certifi')
 a = Analysis(
     ['xianyu_gui.py'],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=['playwright.async_api', 'anti_detect', 'watermark_cleaner', 'simple_lama_inpainting', 'certifi'],
     hookspath=[],
