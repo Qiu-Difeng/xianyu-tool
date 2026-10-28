@@ -163,6 +163,10 @@ def remove_emoji(text):
         '\U0001FA00-\U0001FA6F',  # chess symbols
         '\U00002600-\U000026FF',  # misc symbols (☀☁ etc)
         '\U0001F300-\U0001F5FF',  # misc symbols & pictographs
+        # 变体选择符与零宽连接符必须一起删：像 ❤️ 是 U+2764 + U+FE0F，
+        # 只删主体会在文案里留下不可见的 U+FE0F，粘贴到闲鱼后表现为乱码方块
+        '\uFE0F',
+        '\u200D',
     ]
     pattern = '[' + ''.join(emoji_ranges) + ']+'
     return re.sub(pattern, '', text, flags=re.UNICODE)
