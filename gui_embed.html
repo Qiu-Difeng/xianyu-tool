@@ -46,33 +46,148 @@
   animation: spinEmoji 1.5s linear infinite;
 }
 
+/* ============================================================
+   设计令牌
+   深色为默认；[data-theme="light"] 覆盖同一批变量。
+   --glass* 为旧名，保留以免破坏既有规则；新增语义层给新代码用。
+   ============================================================ */
 :root {
-  --glass: rgba(10, 18, 40, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-light: rgba(255, 255, 255, 0.08);
-  --accent: #d4382e;
-  --accent2: #f5a623;
-  --accent-grad: linear-gradient(135deg, #d4382e 0%, #f5a623 100%);
-  --text: #fff8ee;
-  --text-dim: rgba(255, 248, 238, 0.65);
-  --success: #7bed9f;
-  --warn: #feca57;
-  --error: #ff6b81;
-  --radius: 20px;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+
+  /* 背景与表面 */
+  --wallpaper-a: #090E15;
+  --wallpaper-b: #0F1826;
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-light: rgba(255, 255, 255, 0.07);
+  --field-bg: rgba(0, 0, 0, 0.30);
+  --field-bg-strong: rgba(0, 0, 0, 0.42);
+  --panel-bg: rgba(0, 0, 0, 0.20);
+  --overlay-bg: rgba(4, 8, 14, 0.84);
+  --divider: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.20);
+
+  /* 文字 */
+  --text: #E8EEF7;
+  --text-dim: rgba(232, 238, 247, 0.62);
+  --text-faint: rgba(232, 238, 247, 0.38);
+
+  /* 品牌与语义 */
+  --accent: #E05138;
+  --accent2: #F0A03C;
+  --accent-grad: linear-gradient(135deg, #E05138 0%, #F0A03C 100%);
+  --accent-soft: rgba(224, 81, 56, 0.15);
+  --success: #43C08A;
+  --success-soft: rgba(67, 192, 138, 0.14);
+  --warn: #E9B44C;
+  --warn-soft: rgba(233, 180, 76, 0.14);
+  --error: #E4573D;
+  --error-soft: rgba(228, 87, 61, 0.14);
+
+  /* 形状与层次 */
+  --radius: 18px;
+  --radius-sm: 10px;
+  --radius-xs: 7px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --wallpaper-a: #EBEEF2;
+  --wallpaper-b: #F8F9FB;
+  --glass: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(18, 26, 38, 0.10);
+  --glass-light: rgba(18, 26, 38, 0.045);
+  --field-bg: rgba(18, 26, 38, 0.045);
+  --field-bg-strong: rgba(18, 26, 38, 0.07);
+  --panel-bg: rgba(18, 26, 38, 0.035);
+  --overlay-bg: rgba(24, 32, 44, 0.48);
+  --divider: rgba(18, 26, 38, 0.08);
+  --border-strong: rgba(18, 26, 38, 0.16);
+
+  --text: #131A24;
+  --text-dim: rgba(19, 26, 36, 0.64);
+  --text-faint: rgba(19, 26, 36, 0.40);
+
+  --accent: #CF4025;
+  --accent2: #B8721A;
+  --accent-grad: linear-gradient(135deg, #CF4025 0%, #C87A22 100%);
+  --accent-soft: rgba(207, 64, 37, 0.10);
+  --success: #17855A;
+  --success-soft: rgba(23, 133, 90, 0.10);
+  --warn: #9A6B0F;
+  --warn-soft: rgba(154, 107, 15, 0.10);
+  --error: #B93A24;
+  --error-soft: rgba(185, 58, 36, 0.10);
+
+  --shadow: 0 12px 32px rgba(19, 26, 36, 0.12);
+  --shadow-sm: 0 2px 8px rgba(19, 26, 36, 0.07);
+}
+
+/* 亮色下去掉氛围装饰，保证可读性 */
+:root[data-theme="light"] .wallpaper { display: none; }
+:root[data-theme="light"] .stars,
+:root[data-theme="light"] .snowflakes { display: none; }
+
+/* 图标基础样式：所有 emoji 已替换为内联 SVG */
+.ico {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: -0.125em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.ico-lg { width: 40px; height: 40px; stroke-width: 1.4; }
+.ico-xl { width: 56px; height: 56px; stroke-width: 1.2; }
+
+/* 纯图标按钮 */
+.btn-update.icon-only { padding: 8px 10px; gap: 0; }
+.btn-update.icon-only .ico { width: 15px; height: 15px; }
+
+/* 日志级别用色点表示，不再依赖 emoji */
+.log-line { position: relative; padding-left: 14px; }
+.log-line::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.log-line.success::before { background: var(--success); }
+.log-line.error::before { background: var(--error); }
+.log-line.warn::before { background: var(--warn); }
+.log-line.accent::before { background: var(--accent2); }
+
+/* 主题切换过渡 */
+body, .tab-content, .info-card, .footer, .btn-update, .input-wrap input {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   color: var(--text);
-  font-family: -apple-system, "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-family: -apple-system, "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
   font-size: 14px;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background: linear-gradient(170deg, var(--wallpaper-a) 0%, var(--wallpaper-b) 100%);
 }
 
 .wallpaper {
@@ -82,7 +197,7 @@ body {
 }
 .wallpaper::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(8,15,35,0.55) 0%, rgba(8,15,35,0.45) 40%, rgba(8,15,35,0.6) 100%);
+  background: linear-gradient(180deg, var(--panel-bg) 0%, rgba(8,15,35,0.45) 40%, rgba(8,15,35,0.6) 100%);
   backdrop-filter: blur(2px);
 }
 
@@ -93,25 +208,25 @@ body {
 .snowflake { position: absolute; color: rgba(255,255,255,0.75); font-size: 14px; animation: snowfall linear infinite; text-shadow: 0 0 4px rgba(255,255,255,0.5); }
 
 .header { display: flex; align-items: center; gap: 14px; padding: 22px 30px 14px; position: relative; z-index: 3; animation: fadeIn 0.6s ease; }
-.header .logo-wrap { width: 46px; height: 46px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; backdrop-filter: blur(16px); box-shadow: var(--shadow), 0 0 20px rgba(245,166,35,0.15); animation: float 3s ease-in-out infinite; }
-.header h1 { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: 1px; text-shadow: 0 2px 12px rgba(0,0,0,0.3); white-space: nowrap; flex-shrink: 0; }
+.header .logo-wrap { width: 46px; height: 46px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; backdrop-filter: blur(16px); box-shadow: var(--shadow), 0 0 20px var(--accent-soft); animation: float 3s ease-in-out infinite; }
+.header h1 { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: 1px; text-shadow: 0 2px 12px var(--field-bg); white-space: nowrap; flex-shrink: 0; }
 .header h1 span { color: var(--accent2); font-weight: 400; }
 .header .sub { font-size: 12px; color: var(--text-dim); margin-left: 10px; letter-spacing: 0.5px; min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header .spacer { flex: 1; }
 .btn-update { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text-dim); font-size: 12px; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px); white-space: nowrap; }
-.btn-update:hover { border-color: var(--accent2); color: var(--accent2); box-shadow: 0 0 16px rgba(245,166,35,0.15); }
+.btn-update:hover { border-color: var(--accent2); color: var(--accent2); box-shadow: 0 0 16px var(--accent-soft); }
 .btn-update .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); }
 .btn-update .dot.has-update { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: breathe 1.5s infinite; }
 .btn-update .dot.checking { background: var(--text-dim); animation: breathe 0.8s infinite; }
-.btn-update .spinner { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+.btn-update .spinner { width: 12px; height: 12px; border: 2px solid var(--divider); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
 .btn-update.checking .spinner { display: inline-block; }
 .btn-update.checking .icon-update { display: none; }
 
 .input-area { display: flex; gap: 14px; padding: 8px 30px; position: relative; z-index: 3; }
 .input-wrap { flex: 1; position: relative; }
 .input-wrap input { width: 100%; height: 54px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); color: var(--text); font-size: 15px; padding: 0 20px 0 52px; outline: none; transition: all 0.3s ease; backdrop-filter: blur(20px); box-shadow: var(--shadow); }
-.input-wrap input::placeholder { color: rgba(255,248,238,0.4); }
-.input-wrap input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(245,166,35,0.1), 0 0 30px rgba(245,166,35,0.15); }
+.input-wrap input::placeholder { color: var(--text-faint); }
+.input-wrap input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-soft), 0 0 30px var(--accent-soft); }
 .input-wrap .icon-search { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); font-size: 17px; opacity: 0.5; }
 
 .search-max-wrap { display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 0 16px; height: 54px; backdrop-filter: blur(20px); box-shadow: var(--shadow); }
@@ -123,7 +238,7 @@ body {
 .btn-run:hover { background-position: 100% 0; box-shadow: 0 6px 32px rgba(212,56,46,0.6); transform: translateY(-2px); }
 .btn-run:active { transform: translateY(0) scale(0.97); }
 .btn-run:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.btn-run .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+.btn-run .spinner { width: 16px; height: 16px; border: 2px solid var(--border-strong); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
 .btn-run.loading .spinner { display: block; }
 .btn-run.loading .icon-play { display: none; }
 
@@ -135,7 +250,7 @@ body {
 .status-dot.error { background: var(--error); }
 
 .progress { flex: 1; height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
-.progress-bar { height: 100%; background: var(--accent-grad); background-size: 200% 100%; width: 0%; border-radius: 3px; transition: width 0.5s ease; animation: shimmer 2s linear infinite; box-shadow: 0 0 12px rgba(245,166,35,0.3); }
+.progress-bar { height: 100%; background: var(--accent-grad); background-size: 200% 100%; width: 0%; border-radius: 3px; transition: width 0.5s ease; animation: shimmer 2s linear infinite; box-shadow: 0 0 12px var(--accent-soft); }
 
 .log-section { margin: 12px 30px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); height: 120px; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(24px); box-shadow: var(--shadow); position: relative; z-index: 3; }
 .log-header { padding: 10px 18px 6px; font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid var(--glass-border); }
@@ -149,9 +264,9 @@ body {
 .log-line.accent { color: #a0d2ff; }
 
 .tabs { display: flex; gap: 4px; padding: 10px 30px 0; position: relative; z-index: 3; }
-.tab-btn { padding: 12px 22px; background: var(--glass); border: 1px solid var(--glass-border); border-bottom: none; border-radius: 14px 14px 0 0; color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(16px); }
+.tab-btn { padding: 12px 22px; background: var(--field-bg); border: 1px solid var(--glass-border); border-bottom: none; border-radius: 14px 14px 0 0; color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(16px); }
 .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
-.tab-btn.active { color: var(--text); background: rgba(245,166,35,0.15); border-color: rgba(245,166,35,0.3); border-bottom: 1px solid rgba(245,166,35,0.15); box-shadow: 0 -4px 20px rgba(245,166,35,0.1); }
+.tab-btn.active { color: var(--text); background: var(--accent-soft); border-color: var(--accent-soft); border-bottom: 1px solid var(--accent-soft); box-shadow: 0 -4px 20px var(--accent-soft); }
 
 .tab-content { flex: 1; margin: 0 30px 14px; background: var(--glass); border: 1px solid var(--glass-border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 20px; overflow-y: auto; backdrop-filter: blur(24px); box-shadow: var(--shadow); position: relative; z-index: 3; }
 .tab-content::-webkit-scrollbar { width: 4px; }
@@ -164,17 +279,17 @@ body {
 .info-row:last-child { border-bottom: none; }
 .info-row .label { width: 90px; color: var(--text-dim); flex-shrink: 0; font-size: 13px; }
 .info-row .value { color: var(--text); font-size: 13px; font-weight: 500; }
-.info-desc { margin-top: 16px; padding: 18px; background: rgba(0,0,0,0.2); border-radius: 16px; font-size: 13px; line-height: 2; white-space: pre-wrap; max-height: 220px; overflow-y: auto; border: 1px solid var(--glass-border); }
+.info-desc { margin-top: 16px; padding: 18px; background: var(--panel-bg); border-radius: 16px; font-size: 13px; line-height: 2; white-space: pre-wrap; max-height: 220px; overflow-y: auto; border: 1px solid var(--glass-border); }
 
 .img-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .img-count { font-size: 12px; color: var(--text-dim); }
 .btn-save { padding: 8px 18px; background: var(--glass-light); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 6px; }
-.btn-save:hover { border-color: var(--accent2); color: var(--accent2); box-shadow: 0 0 16px rgba(245,166,35,0.15); }
+.btn-save:hover { border-color: var(--accent2); color: var(--accent2); box-shadow: 0 0 16px var(--accent-soft); }
 .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
-.img-card { background: rgba(0,0,0,0.25); border-radius: 16px; overflow: hidden; aspect-ratio: 1; cursor: pointer; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 4px 16px rgba(0,0,0,0.3); border: 1px solid var(--glass-border); animation: fadeInUp 0.5s ease backwards; }
-.img-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 30px rgba(245,166,35,0.12); border-color: rgba(245,166,35,0.3); }
+.img-card { background: rgba(0,0,0,0.25); border-radius: 16px; overflow: hidden; aspect-ratio: 1; cursor: pointer; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 4px 16px var(--field-bg); border: 1px solid var(--glass-border); animation: fadeInUp 0.5s ease backwards; }
+.img-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 30px rgba(245,166,35,0.12); border-color: var(--accent-soft); }
 .img-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
 .img-card:hover img { transform: scale(1.1); }
 
@@ -186,7 +301,7 @@ body {
 .copy-tab .refresh-icon { font-size: 14px; opacity: 0.7; transition: all 0.3s; }
 .copy-tab:hover .refresh-icon { opacity: 1; transform: rotate(180deg); }
 
-.copy-content { background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 16px; padding: 22px; font-size: 13px; line-height: 2.2; white-space: pre-wrap; min-height: 200px; backdrop-filter: blur(16px); animation: fadeInUp 0.4s ease; }
+.copy-content { background: var(--panel-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 22px; font-size: 13px; line-height: 2.2; white-space: pre-wrap; min-height: 200px; backdrop-filter: blur(16px); animation: fadeInUp 0.4s ease; }
 .copy-meta { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; display: flex; gap: 18px; align-items: center; }
 .badge-ok { color: var(--success); }
 .badge-warn { color: var(--accent2); }
@@ -196,20 +311,20 @@ body {
 .btn-refresh { padding: 8px 18px; background: var(--glass-light); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 6px; }
 .btn-refresh:hover { border-color: var(--accent2); color: var(--accent2); }
 .btn-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-refresh .spinner { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+.btn-refresh .spinner { width: 12px; height: 12px; border: 2px solid var(--border-strong); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
 .btn-refresh.loading .spinner { display: inline-block; }
 .btn-refresh.loading .refresh-text { display: none; }
 
-.footer { text-align: center; padding: 12px; font-size: 11px; color: var(--text-dim); background: rgba(0,0,0,0.3); border-top: 1px solid var(--glass-border); position: relative; z-index: 3; letter-spacing: 0.5px; backdrop-filter: blur(16px); }
+.footer { text-align: center; padding: 12px; font-size: 11px; color: var(--text-dim); background: var(--field-bg); border-top: 1px solid var(--glass-border); position: relative; z-index: 3; letter-spacing: 0.5px; backdrop-filter: blur(16px); }
 
 .empty { color: var(--text-dim); text-align: center; padding: 70px 20px; font-size: 14px; }
 .empty .emoji { font-size: 52px; display: block; margin-bottom: 16px; animation: breathe 3s infinite; }
 .empty p { font-size: 13px; opacity: 0.8; }
 
 /* 耗时面板 */
-.timings { margin-top: 16px; padding: 16px; background: rgba(0,0,0,0.2); border-radius: 16px; border: 1px solid var(--glass-border); }
+.timings { margin-top: 16px; padding: 16px; background: var(--panel-bg); border-radius: 16px; border: 1px solid var(--glass-border); }
 .timings h4 { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; letter-spacing: 1px; }
-.timing-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.timing-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--glass-light); }
 .timing-row:last-child { border-bottom: none; }
 .timing-name { color: var(--text-dim); }
 .timing-val { color: var(--accent2); font-weight: 600; }
@@ -219,23 +334,136 @@ body {
 </head>
 <body>
 
+<!-- 图标精灵：全部自绘，24x24 网格，1.75 描边，跟随 currentColor -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-fish" viewBox="0 0 24 24">
+      <path d="M3 12c3-4.2 7-6 11-4.2 2 .9 3.2 2.4 3.2 4.2s-1.2 3.3-3.2 4.2C10 18 6 16.2 3 12z"/>
+      <path d="M17 8.2L21 5v14l-4-3.2"/>
+      <circle cx="8.2" cy="11" r=".95" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-key" viewBox="0 0 24 24">
+      <circle cx="8" cy="8" r="4.2"/>
+      <path d="M11.2 11.2L20 20M17 17l2.2-2.2M19.2 19.2l2.2-2.2"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20.5 11a8.5 8.5 0 1 0-2.6 6.4"/>
+      <path d="M20.5 4.5V11h-6.5"/>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24">
+      <path d="M8 5.2l11 6.8-11 6.8z"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5"/>
+      <path d="M15.4 15.4L21 21"/>
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24">
+      <rect x="3" y="4.5" width="18" height="15" rx="2.2"/>
+      <circle cx="8.6" cy="9.6" r="1.5"/>
+      <path d="M21 15.5l-4.8-4.8L7 19.5"/>
+    </symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24">
+      <path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z"/>
+      <path d="M18.5 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>
+    </symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24">
+      <path d="M4.5 19.5h4L20 8l-4-4L4.5 15.5z"/>
+      <path d="M14.5 5.5l4 4"/>
+    </symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24">
+      <rect x="3.2" y="3.2" width="7.2" height="7.2" rx="1.6"/>
+      <rect x="13.6" y="3.2" width="7.2" height="7.2" rx="1.6"/>
+      <rect x="3.2" y="13.6" width="7.2" height="7.2" rx="1.6"/>
+      <rect x="13.6" y="13.6" width="7.2" height="7.2" rx="1.6"/>
+    </symbol>
+    <symbol id="i-video" viewBox="0 0 24 24">
+      <rect x="2.5" y="6" width="13.5" height="12" rx="2.2"/>
+      <path d="M16 10.5l5.5-3v9l-5.5-3"/>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="9" y="9" width="11.5" height="11.5" rx="2.2"/>
+      <path d="M5.5 15V6.2A2.2 2.2 0 0 1 7.7 4H15"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path d="M12 3.5v11.5M7.5 10.5L12 15l4.5-4.5"/>
+      <path d="M4 19.5h16"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M4.5 12.5l5 5L19.8 6.8"/>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <path d="M6 6l12 12M18 6L6 18"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path d="M12 3.5l8.8 16H3.2z"/>
+      <path d="M12 9.5v4.2"/>
+      <circle cx="12" cy="16.6" r=".85" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.8"/>
+      <path d="M12 11v5.5"/>
+      <circle cx="12" cy="8" r=".9" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-error" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.8"/>
+      <path d="M9 9l6 6M15 9l-6 6"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5 8.6 8.6 0 1 0 20.5 14.8z"/>
+    </symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24">
+      <rect x="3" y="4.2" width="18" height="12" rx="2.2"/>
+      <path d="M9 20.2h6M12 16.2v4"/>
+    </symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24">
+      <path d="M12 3.2a8.8 8.8 0 1 0 8.8 8.8" stroke-width="2.2"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24">
+      <path d="M10.2 13.8a4.6 4.6 0 0 0 6.5 0l2.8-2.8a4.6 4.6 0 0 0-6.5-6.5l-1.4 1.4"/>
+      <path d="M13.8 10.2a4.6 4.6 0 0 0-6.5 0l-2.8 2.8a4.6 4.6 0 0 0 6.5 6.5l1.4-1.4"/>
+    </symbol>
+    <symbol id="i-package" viewBox="0 0 24 24">
+      <path d="M12 3l8.2 4.6v8.8L12 21l-8.2-4.6V7.6z"/>
+      <path d="M3.8 7.6L12 12.2l8.2-4.6M12 12.2V21"/>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24">
+      <path d="M9 6l6 6-6 6"/>
+    </symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24">
+      <rect x="3" y="5.5" width="18" height="13" rx="2.2"/>
+      <path d="M3.6 7.2l8.4 5.8 8.4-5.8"/>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.8"/>
+      <path d="M3.2 12h17.6M12 3.2c2.4 2.4 3.6 5.4 3.6 8.8s-1.2 6.4-3.6 8.8c-2.4-2.4-3.6-5.4-3.6-8.8S9.6 5.6 12 3.2z"/>
+    </symbol>
+  </defs>
+</svg>
+
 <div class="wallpaper"></div>
 <div class="stars" id="stars"></div>
 <div class="snowflakes" id="snowflakes"></div>
 
 <div class="header">
-  <div class="logo-wrap">🐟</div>
+  <div class="logo-wrap"><svg class="ico"><use href="#i-fish"/></svg></div>
   <h1>闲鱼辅助工具 <span>· 冬夜漫步</span></h1>
   <span class="sub">链接解析 → 去水印 → 文案改写 → 以图搜图</span>
   <div class="spacer"></div>
+  <button class="btn-update icon-only" id="themeBtn" onclick="cycleTheme()" title="切换主题（跟随系统 / 深色 / 浅色）">
+    <svg class="ico"><use href="#i-monitor" id="themeUse"/></svg>
+  </button>
   <button class="btn-update" id="keyBtn" onclick="showKeyModal()" title="点击配置 API Key">
-    <span class="icon-update">🔑</span>
+    <span class="icon-update"><svg class="ico"><use href="#i-key"/></svg></span>
     <span id="keyBtnText">Key 未配置</span>
   </button>
   <button class="btn-update" id="updateBtn" onclick="checkUpdate(true)">
     <span class="dot" id="updateDot"></span>
     <span class="spinner"></span>
-    <span class="icon-update">🔄</span>
+    <span class="icon-update"><svg class="ico"><use href="#i-refresh"/></svg></span>
     <span id="updateBtnText">检查更新</span>
   </button>
 </div>
@@ -243,7 +471,7 @@ body {
 <div class="input-area">
   <div class="input-wrap">
     <input type="text" id="urlInput" placeholder="粘贴闲鱼商品链接（如 https://m.tb.cn/h.xxx）" />
-    <span class="icon-search">🔍</span>
+    <span class="icon-search"><svg class="ico"><use href="#i-search"/></svg></span>
   </div>
   <div class="search-max-wrap">
     <label>补充图</label>
@@ -252,7 +480,7 @@ body {
   </div>
   <button class="btn-run" id="runBtn" onclick="runTool()">
     <span class="spinner"></span>
-    <span class="icon-play">▶</span>
+    <span class="icon-play"><svg class="ico"><use href="#i-play"/></svg></span>
     <span class="btn-text">开始</span>
   </button>
 </div>
@@ -266,23 +494,23 @@ body {
 </div>
 
 <div class="log-section">
-  <div class="log-header">❄️ 运行日志</div>
+  <div class="log-header"><svg class="ico"><use href="#i-info"/></svg>运行日志</div>
   <div class="log-box" id="logBox"></div>
 </div>
 
 <div class="tabs" id="tabBar">
-  <button class="tab-btn active" onclick="switchTab(0)">📋 商品信息</button>
-  <button class="tab-btn" onclick="switchTab(1)">🖼️ 原图</button>
-  <button class="tab-btn" onclick="switchTab(2)">🧽 去水印</button>
-  <button class="tab-btn" onclick="switchTab(3)">📝 文案</button>
-  <button class="tab-btn" onclick="switchTab(4)">🔍 补充图</button>
-  <button class="tab-btn" onclick="switchTab(5)">🎬 视频</button>
+  <button class="tab-btn active" onclick="switchTab(0)"><svg class="ico"><use href="#i-copy"/></svg> 商品信息</button>
+  <button class="tab-btn" onclick="switchTab(1)"><svg class="ico"><use href="#i-image"/></svg> 原图</button>
+  <button class="tab-btn" onclick="switchTab(2)"><svg class="ico"><use href="#i-sparkle"/></svg> 去水印</button>
+  <button class="tab-btn" onclick="switchTab(3)"><svg class="ico"><use href="#i-pen"/></svg> 文案</button>
+  <button class="tab-btn" onclick="switchTab(4)"><svg class="ico"><use href="#i-search"/></svg> 补充图</button>
+  <button class="tab-btn" onclick="switchTab(5)"><svg class="ico"><use href="#i-video"/></svg> 视频</button>
 </div>
 
 <div class="tab-content">
   <div class="tab-pane active" id="pane0">
     <div class="empty">
-      <span class="emoji">🌨️</span>
+      <span class="emoji"><svg class="ico"><use href="#i-sparkle"/></svg></span>
       <p>输入链接后点击「开始」，和小新小白一起漫步吧~</p>
     </div>
   </div>
@@ -293,7 +521,7 @@ body {
   <div class="tab-pane" id="pane5"></div>
 </div>
 
-<div class="footer">闲鱼辅助工具 v4.1 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" onclick="showFeedback(); return false;" style="color:var(--accent2);text-decoration:none;">问题反馈</a> · <a href="#" onclick="checkUpdate(true); return false;" style="color:var(--accent2);text-decoration:none;">检查更新</a></div>
+<div class="footer">闲鱼辅助工具 v1.3.7 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" onclick="showFeedback(); return false;" style="color:var(--accent2);text-decoration:none;">问题反馈</a> · <a href="#" onclick="checkUpdate(true); return false;" style="color:var(--accent2);text-decoration:none;">检查更新</a></div>
 
 <script>
 // HTML 转义：所有来自后端/第三方（闲鱼标题、卖家昵称、商品描述、异常信息）
@@ -326,7 +554,7 @@ const snowContainer = document.getElementById('snowflakes');
 for (let i = 0; i < 30; i++) {
   const flake = document.createElement('div');
   flake.className = 'snowflake';
-  flake.textContent = Math.random() > 0.5 ? '❄' : '✦';
+  flake.textContent = Math.random() > 0.5 ? '' : '';
   flake.style.left = Math.random() * 100 + '%';
   flake.style.animationDuration = (6 + Math.random() * 10) + 's';
   flake.style.animationDelay = Math.random() * 12 + 's';
@@ -369,7 +597,7 @@ function showKeyModal(fromStartup) {
 
   overlay.innerHTML = `
     <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:26px 30px;max-width:520px;width:92%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;max-height:90vh;overflow-y:auto;">
-      <div style="font-size:38px;text-align:center;margin-bottom:6px;">🔑</div>
+      <div style="font-size:38px;text-align:center;margin-bottom:6px;"><svg class="ico"><use href="#i-key"/></svg></div>
       <h2 style="color:var(--text);margin:0 0 8px;font-size:19px;text-align:center;">配置大模型</h2>
       <p style="color:var(--text-dim);font-size:12px;line-height:1.6;margin:0 0 16px;text-align:center;">
         本工具不内置 Key，需要填你自己的
@@ -378,14 +606,14 @@ function showKeyModal(fromStartup) {
       <div style="margin-bottom:14px;">
         <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px;">服务商</div>
         <select id="keyPreset" onchange="onPresetChange()"
-          style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.35);color:var(--text);font-size:14px;box-sizing:border-box;"></select>
+          style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg-strong);color:var(--text);font-size:14px;box-sizing:border-box;"></select>
         <div id="keyPresetHint" style="color:var(--accent2);font-size:11px;margin-top:6px;min-height:15px;"></div>
       </div>
 
       <div style="margin-bottom:10px;">
         <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px;">API Key <span id="keyApplyLink" onclick="openKeyPage()" style="color:var(--accent2);cursor:pointer;margin-left:8px;">去申请 →</span></div>
         <input type="password" id="keyInput" placeholder="在这里粘贴 API Key"
-          style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.35);color:var(--text);font-size:14px;box-sizing:border-box;font-family:monospace;" />
+          style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg-strong);color:var(--text);font-size:14px;box-sizing:border-box;font-family:monospace;" />
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -398,26 +626,26 @@ function showKeyModal(fromStartup) {
       </div>
 
       <div id="keyAdvancedArea" style="display:none;border-top:1px solid var(--glass-border);padding-top:14px;margin-bottom:12px;">
-        <div style="color:var(--text);font-size:13px;font-weight:600;margin-bottom:8px;">📝 文本模型（写文案）</div>
+        <div style="color:var(--text);font-size:13px;font-weight:600;margin-bottom:8px;"><svg class="ico"><use href="#i-pen"/></svg> 文本模型（写文案）</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <input type="text" id="textBaseUrl" placeholder="API 地址"
-            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;" />
           <input type="text" id="textModel" placeholder="模型名"
-            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;" />
         </div>
         <input type="password" id="textKey" placeholder="独立 Key（留空则用上面的 Key）"
-          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
+          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
         <button onclick="testModel('text')" id="testTextBtn" style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-dim);font-size:12px;cursor:pointer;">测试文本模型</button>
 
-        <div style="color:var(--text);font-size:13px;font-weight:600;margin:14px 0 8px;">🖼️ 视觉模型（去水印，必须支持图片）</div>
+        <div style="color:var(--text);font-size:13px;font-weight:600;margin:14px 0 8px;"><svg class="ico"><use href="#i-image"/></svg> 视觉模型（去水印，必须支持图片）</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <input type="text" id="visionBaseUrl" placeholder="API 地址"
-            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;" />
           <input type="text" id="visionModel" placeholder="模型名"
-            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;" />
         </div>
         <input type="password" id="visionKey" placeholder="独立 Key（留空则用上面的 Key）"
-          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
+          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
         <button onclick="testModel('vision')" id="testVisionBtn" style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-dim);font-size:12px;cursor:pointer;">测试视觉模型</button>
 
         <p style="color:var(--text-dim);font-size:11px;line-height:1.6;margin:12px 0 0;opacity:0.8;">
@@ -644,7 +872,7 @@ function saveKey() {
         finishSave(true, '视觉模型未配置，去水印功能不可用');
         return;
       }
-      setKeyHint('文本模型 ✓，正在验证视觉模型…', 'success');
+      setKeyHint('文本模型 <svg class="ico"><use href="#i-check"/></svg>，正在验证视觉模型…', 'success');
       pywebview.api.test_llm('vision').then(v => {
         finishSave(v.success, v.success ? '' : (v.error || ''));
       }).catch(e => finishSave(false, String(e)));
@@ -670,11 +898,11 @@ function finishSave(visionOk, visionMsg) {
   updateKeyBtn({ configured: true });
 
   if (visionOk) {
-    setKeyHint('✅ 全部验证通过，可以开始用了', 'success');
+    setKeyHint('<svg class="ico"><use href="#i-check"/></svg> 全部验证通过，可以开始用了', 'success');
   } else {
     setKeyHint('文本模型可用；' + (visionMsg || '视觉模型未通过验证') + '（去水印会不可用）', 'warn');
   }
-  addLog('🔑 大模型配置已保存', 'success');
+  addLog('大模型配置已保存', 'success');
   setTimeout(() => {
     hideKeyModal();
     if (!guideSeenBefore()) showGuide();
@@ -709,9 +937,9 @@ function testModel(kind) {
       btn.disabled = false;
       btn.textContent = oldText;
       if (t.success) {
-        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 ✓ 回复：' + (t.reply || '正常'), 'success');
+        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 <svg class="ico"><use href="#i-check"/></svg> 回复：' + (t.reply || '正常'), 'success');
       } else {
-        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 ✗ ' + (t.error || '失败'), 'error');
+        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 <svg class="ico"><use href="#i-x"/></svg> ' + (t.error || '失败'), 'error');
       }
     }).catch(e => {
       btn.disabled = false;
@@ -726,17 +954,80 @@ function testModel(kind) {
 }
 
 // === 首次使用引导 ===
-const GUIDE_KEY = 'xianyu_tool_guide_seen';
+// === 界面状态（引导 / 主题 / 跳过版本）===
+// 注意：pywebview 用 html= 直接渲染时页面是 about:blank，
+// localStorage 与 sessionStorage 都会抛 SecurityError，
+// 所以状态必须存到后端文件（%LOCALAPPDATA%\XianyuTool\ui_state.json）。
+let _uiState = { guide_seen: false, theme: 'system', skip_version: '' };
 
-// 原实现用内存变量 _guideSeen 记录，进程一重启就重置，导致每次打开都弹 6 步引导。
-// 同文件 skipVersion 已在用 localStorage，说明 pywebview 的 WebView2 支持本地存储。
-function guideSeenBefore() {
-  try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch (e) { return false; }
+function loadUiState() {
+  return pywebview.api.get_ui_state().then(st => {
+    if (st && typeof st === 'object') _uiState = st;
+    return _uiState;
+  }).catch(() => _uiState);
 }
 
+function patchUiState(patch) {
+  Object.assign(_uiState, patch);
+  try {
+    pywebview.api.save_ui_state(patch).catch(() => {});
+  } catch (e) {}
+}
+
+function guideSeenBefore() { return !!_uiState.guide_seen; }
+
+// ===== 主题：system / dark / light =====
+let _systemTheme = 'dark';
+
+function applyTheme(mode) {
+  const root = document.documentElement;
+  const actual = (mode === 'system') ? _systemTheme : mode;
+  root.setAttribute('data-theme', actual === 'light' ? 'light' : 'dark');
+  root.setAttribute('data-theme-mode', mode);
+
+  const use = document.getElementById('themeUse');
+  const btn = document.getElementById('themeBtn');
+  const iconMap = { system: '#i-monitor', dark: '#i-moon', light: '#i-sun' };
+  const labelMap = { system: '跟随系统', dark: '深色', light: '浅色' };
+  if (use) use.setAttribute('href', iconMap[mode] || '#i-monitor');
+  if (btn) btn.title = '当前：' + (labelMap[mode] || '跟随系统') + '（点击切换）';
+}
+
+function setTheme(mode) {
+  applyTheme(mode);
+  patchUiState({ theme: mode });
+}
+
+function cycleTheme() {
+  const order = ['system', 'dark', 'light'];
+  const cur = order.indexOf(_uiState.theme) === -1 ? 'system' : _uiState.theme;
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  setTheme(next);
+  addLog('主题已切换为「' + ({ system: '跟随系统', dark: '深色', light: '浅色' })[next] + '」', 'accent');
+}
+
+// 系统主题变化时，若处于跟随模式则实时同步
+(function watchSystemTheme() {
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = (e) => {
+      _systemTheme = e.matches ? 'light' : 'dark';
+      if ((_uiState.theme || 'system') === 'system') applyTheme('system');
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  } catch (e) {}
+})();
+
 window.addEventListener('pywebviewready', () => {
-  // 先确认 Key 状态：没配置就直接引导填写，配好了再看要不要显示新手引导
-  pywebview.api.get_key_status().then(s => {
+  loadUiState().then(() => {
+    // 系统主题以注册表为准（WebView2 的 prefers-color-scheme 不一定跟随系统）
+    return pywebview.api.get_system_theme().catch(() => null);
+  }).then(sys => {
+    if (sys && sys.theme) _systemTheme = sys.theme;
+    applyTheme(_uiState.theme || 'system');
+    return pywebview.api.get_key_status();
+  }).then(s => {
     _keyConfigured = !!(s && s.configured);
     updateKeyBtn(s);
     if (!_keyConfigured) {
@@ -745,7 +1036,7 @@ window.addEventListener('pywebviewready', () => {
       setTimeout(() => showGuide(), 800);
     }
   }).catch(() => {
-    // 查询失败不阻塞使用，按"未知"处理
+    applyTheme(_uiState.theme || 'system');
     _keyConfigured = null;
     if (!guideSeenBefore()) {
       setTimeout(() => showGuide(), 800);
@@ -756,15 +1047,15 @@ window.addEventListener('pywebviewready', () => {
 function showGuide() {
   const overlay = document.createElement('div');
   overlay.id = 'guideOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
   
   const steps = [
-    { icon: '👋', title: '欢迎使用闲鱼辅助工具', desc: '帮你一键解析闲鱼商品、去水印、生成三版文案、搜补充图', },
-    { icon: '🔗', title: '第一步：粘贴链接', desc: '把闲鱼商品分享链接粘贴到顶部输入框，点「开始处理」', },
-    { icon: '🔑', title: '第二步：首次需扫码登录', desc: '首次使用会弹出Chrome窗口，扫码登录闲鱼即可，之后自动记住登录态', },
-    { icon: '⚡', title: '第三步：等待处理完成', desc: '自动解析商品→下载图片→去水印→生成V1/V2/V3三版文案，约1-2分钟', },
-    { icon: '💾', title: '第四步：保存结果', desc: '图片、文案、补充图都可以一键保存到你选的位置', },
-    { icon: '❓', title: '遇到问题？', desc: '点击底部的「问题反馈」按钮描述你遇到的问题', },
+    { icon: '<svg class="ico"><use href="#i-fish"/></svg>', title: '欢迎使用闲鱼辅助工具', desc: '帮你一键解析闲鱼商品、去水印、生成三版文案、搜补充图', },
+    { icon: '<svg class="ico"><use href="#i-link"/></svg>', title: '第一步：粘贴链接', desc: '把闲鱼商品分享链接粘贴到顶部输入框，点「开始处理」', },
+    { icon: '<svg class="ico"><use href="#i-key"/></svg>', title: '第二步：首次需扫码登录', desc: '首次使用会弹出Chrome窗口，扫码登录闲鱼即可，之后自动记住登录态', },
+    { icon: '<svg class="ico"><use href="#i-sparkle"/></svg>', title: '第三步：等待处理完成', desc: '自动解析商品→下载图片→去水印→生成V1/V2/V3三版文案，约1-2分钟', },
+    { icon: '<svg class="ico"><use href="#i-download"/></svg>', title: '第四步：保存结果', desc: '图片、文案、补充图都可以一键保存到你选的位置', },
+    { icon: '<svg class="ico"><use href="#i-info"/></svg>', title: '遇到问题？', desc: '点击底部的「问题反馈」按钮描述你遇到的问题', },
   ];
   
   let currentStep = 0;
@@ -781,13 +1072,13 @@ function showGuide() {
         <p style="color:var(--text-dim);font-size:14px;line-height:1.8;margin-bottom:28px;">${step.desc}</p>
         
         <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">
-          ${steps.map((_, i) => `<div style="width:${i === currentStep ? '24px' : '8px'};height:8px;border-radius:4px;background:${i === currentStep ? 'var(--accent2)' : 'rgba(255,255,255,0.2)'};transition:all 0.3s;"></div>`).join('')}
+          ${steps.map((_, i) => `<div style="width:${i === currentStep ? '24px' : '8px'};height:8px;border-radius:4px;background:${i === currentStep ? 'var(--accent2)' : 'var(--divider)'};transition:all 0.3s;"></div>`).join('')}
         </div>
         
         <div style="display:flex;gap:12px;">
           ${!isFirst ? '<button onclick="guidePrev()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">上一步</button>' : ''}
           ${isLast 
-            ? '<button onclick="closeGuide()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">✓ 开始使用</button>'
+            ? '<button onclick="closeGuide()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-check"/></svg> 开始使用</button>'
             : '<button onclick="guideNext()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">下一步</button>'}
         </div>
         ${isFirst ? '<p style="margin-top:16px;font-size:12px;color:var(--text-dim);cursor:pointer;" onclick="closeGuide()">跳过引导</p>' : ''}
@@ -800,7 +1091,7 @@ function showGuide() {
   window.closeGuide = () => { 
     const ov = document.getElementById('guideOverlay');
     if (ov) ov.remove();
-    try { localStorage.setItem(GUIDE_KEY, '1'); } catch (e) {}
+    patchUiState({ guide_seen: true });
   };
   
   renderStep();
@@ -811,18 +1102,18 @@ function showGuide() {
 function showFeedback() {
   const overlay = document.createElement('div');
   overlay.id = 'feedbackOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
   
   overlay.innerHTML = `
     <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;">
-      <h2 style="color:var(--text);margin-bottom:16px;text-align:center;">📝 问题反馈</h2>
+      <h2 style="color:var(--text);margin-bottom:16px;text-align:center;"><svg class="ico"><use href="#i-pen"/></svg> 问题反馈</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">遇到bug或有建议？描述一下，复制后发邮件给卖家</p>
       
       <textarea id="feedbackContent" placeholder="请描述遇到的问题..." 
-        style="width:100%;height:120px;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:none;box-sizing:border-box;margin-bottom:12px;"></textarea>
+        style="width:100%;height:120px;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:14px;resize:none;box-sizing:border-box;margin-bottom:12px;"></textarea>
       
       <input type="text" id="feedbackContact" placeholder="联系方式（选填，方便回复你）" 
-        style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;margin-bottom:16px;box-sizing:border-box;" />
+        style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:14px;margin-bottom:16px;box-sizing:border-box;" />
       
       <div style="display:flex;gap:12px;">
         <button onclick="document.getElementById('feedbackOverlay').remove()" 
@@ -851,21 +1142,21 @@ function submitFeedback() {
   const box = document.getElementById('feedbackOverlay');
   box.innerHTML = `
     <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-      <div style="font-size:40px;margin-bottom:12px;">📤</div>
+      <div style="font-size:40px;margin-bottom:12px;"><svg class="ico"><use href="#i-download"/></svg></div>
       <h2 style="color:var(--text);margin-bottom:8px;">反馈已生成</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">请复制以下内容，发给卖家反馈问题</p>
       
-      <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;margin-bottom:16px;text-align:left;">
+      <div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:16px;text-align:left;">
         <pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text);font-size:13px;line-height:1.6;margin:0;font-family:inherit;">${escapeHtml(feedbackText)}</pre>
       </div>
       
       <div style="background:rgba(213,56,46,0.15);border-radius:10px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:13px;color:var(--text-dim);margin-bottom:6px;">📧 卖家邮箱</p>
+        <p style="font-size:13px;color:var(--text-dim);margin-bottom:6px;"><svg class="ico"><use href="#i-mail"/></svg> 卖家邮箱</p>
         <p style="font-size:16px;color:var(--accent2);font-weight:600;user-select:text;">3144994163@qq.com</p>
       </div>
       
       <button onclick="copyFeedbackText()" id="copyFbBtn" 
-        style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">📋 一键复制反馈内容</button>
+        style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制反馈内容</button>
       <button onclick="document.getElementById('feedbackOverlay').remove()" 
         style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;">关闭</button>
     </div>
@@ -880,7 +1171,7 @@ function copyFeedbackText() {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
       const btn = document.getElementById('copyFbBtn');
-      btn.textContent = '✓ 已复制，发邮件给卖家';
+      btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已复制，发邮件给卖家';
       btn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
     });
   } else {
@@ -892,7 +1183,7 @@ function copyFeedbackText() {
     document.execCommand('copy');
     document.body.removeChild(ta);
     const btn = document.getElementById('copyFbBtn');
-    btn.textContent = '✓ 已复制，去QQ发给卖家';
+    btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已复制，去QQ发给卖家';
     btn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
   }
 }
@@ -933,7 +1224,7 @@ function runTool() {
   // 没有 Key 就先拦住，别让用户白等一轮
   if (_keyConfigured === false) {
     setStatus('请先配置 API Key', 'error');
-    addLog('🔑 还没有配置 API Key，先填一下再开始', 'error');
+    addLog('还没有配置 API Key，先填一下再开始', 'error');
     showKeyModal(true);
     return;
   }
@@ -941,14 +1232,14 @@ function runTool() {
   // 简单链接验证
   if (!url.match(/https?:\/\/[\w\.-]+/i)) {
     setStatus('链接格式不正确，请粘贴闲鱼分享链接', 'error');
-    addLog('💥 链接格式不正确', 'error');
+    addLog('链接格式不正确', 'error');
     return;
   }
 
   const searchMax = parseInt(document.getElementById('searchMax').value) || 15;
 
   clearLog();
-  addLog('🌨️ 开始处理，和小新小白一起漫步吧~', 'accent');
+  addLog('开始处理，和小新小白一起漫步吧~', 'accent');
   setStatus('正在启动浏览器...', 'running');
   setProgress(5);
   setBtnLoading(true);
@@ -967,7 +1258,7 @@ function runTool() {
   }, 800);
 
   for (let i = 0; i < 6; i++) {
-    document.getElementById('pane' + i).innerHTML = '<div class="empty"><span class="emoji spinning">⛄</span><p>处理中，请稍候...</p></div>';
+    document.getElementById('pane' + i).innerHTML = '<div class="empty"><span class="emoji spinning"></span><p>处理中，请稍候...</p></div>';
   }
 
   pywebview.api.run_tool(url, searchMax).then(result => {
@@ -975,12 +1266,12 @@ function runTool() {
     setBtnLoading(false);
     if (result && result.success) {
       setProgress(100);
-      addLog('✨ 全流程完成！耗时 ' + result.elapsed + '秒', 'success');
+      addLog('全流程完成！耗时 ' + result.elapsed + '秒', 'success');
       setStatus('完成！耗时 ' + result.elapsed + '秒', 'done');
       displayResult(result);
     } else {
       const errMsg = (result && result.error) ? result.error : '未知错误，请检查链接是否有效';
-      addLog('💥 处理失败: ' + errMsg, 'error');
+      addLog('处理失败: ' + errMsg, 'error');
       setStatus('失败: ' + errMsg.substring(0, 30), 'error');
       setProgress(0);
     }
@@ -988,7 +1279,7 @@ function runTool() {
     clearInterval(progressTimer);
     setBtnLoading(false);
     const errMsg = String(err).substring(0, 100);
-    addLog('💥 错误: ' + errMsg, 'error');
+    addLog('错误: ' + errMsg, 'error');
     setStatus('运行出错', 'error');
     setProgress(0);
   });
@@ -1037,24 +1328,24 @@ function displayResult(result) {
     document.getElementById('pane2').innerHTML = renderImagesWithSave(imgs, 'clean');
   });
   // 文案 - 先显示生成中，轮询检查状态
-  document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji spinning">📝</span><p>文案后台生成中，预计30-60秒...</p></div>';
+  document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji spinning"><svg class="ico"><use href="#i-pen"/></svg></span><p>文案后台生成中，预计30-60秒...</p></div>';
   startCopyPolling(result.output_dir);
   // 补充图
-  document.getElementById('pane4').innerHTML = '<div class="empty"><span class="emoji">🔍</span><p>点击下方按钮搜索补充图</p>' +
-    '<button class="btn-refresh" id="searchSupplementBtn" onclick="searchSupplementImages()" style="margin-top:12px;">🔍 搜索补充图</button></div>';
+  document.getElementById('pane4').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-search"/></svg></span><p>点击下方按钮搜索补充图</p>' +
+    '<button class="btn-refresh" id="searchSupplementBtn" onclick="searchSupplementImages()" style="margin-top:12px;"><svg class="ico"><use href="#i-search"/></svg> 搜索补充图</button></div>';
   // 视频
   if (result.video_url) {
-    document.getElementById('pane5').innerHTML = '<div class="empty"><span class="emoji">🎬</span><p>该商品有视频</p>' +
-      '<button class="btn-refresh" onclick="downloadVideo()" style="margin-top:12px;">⬇️ 保存视频</button></div>';
+    document.getElementById('pane5').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span><p>该商品有视频</p>' +
+      '<button class="btn-refresh" onclick="downloadVideo()" style="margin-top:12px;"><svg class="ico"><use href="#i-download"/></svg> 保存视频</button></div>';
   } else {
-    document.getElementById('pane5').innerHTML = '<div class="empty"><span class="emoji">🎬</span><p>该商品没有视频</p></div>';
+    document.getElementById('pane5').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span><p>该商品没有视频</p></div>';
   }
 }
 
 function renderImagesWithSave(imgs, subfolder) {
-  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji">📷</span><p>无图片</p></div>';
+  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-image"/></svg></span><p>无图片</p></div>';
   let html = '<div class="img-toolbar"><span class="img-count">共 ' + imgs.length + ' 张</span>' +
-    '<button class="btn-save" onclick="saveImages(\'' + subfolder + '\')">💾 保存到...</button></div>';
+    '<button class="btn-save" onclick="saveImages(\'' + subfolder + '\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button></div>';
   html += '<div class="img-grid">';
   imgs.forEach((src, i) => {
     html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's"><img src="' + src + '" loading="lazy" /></div>';
@@ -1063,10 +1354,10 @@ function renderImagesWithSave(imgs, subfolder) {
 }
 
 function renderSearchImages(imgs) {
-  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji">🔍</span><p>无补充图，点击下方按钮搜索</p></div>';
+  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-search"/></svg></span><p>无补充图，点击下方按钮搜索</p></div>';
   let html = '<div class="search-toolbar"><span class="img-count">共 ' + imgs.length + ' 张补充图</span>' +
-    '<button class="btn-save" onclick="saveImages(\'search\')">💾 保存到...</button>' +
-    '<button class="btn-refresh" id="refreshSearchBtn" onclick="searchSupplementImages()"><span class="refresh-text">🔄 重新搜索</span></button></div>';
+    '<button class="btn-save" onclick="saveImages(\'search\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button>' +
+    '<button class="btn-refresh" id="refreshSearchBtn" onclick="searchSupplementImages()"><span class="refresh-text"><svg class="ico"><use href="#i-refresh"/></svg> 重新搜索</span></button></div>';
   html += '<div class="img-grid">';
   imgs.forEach((src, i) => {
     html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's"><img src="' + src + '" loading="lazy" /></div>';
@@ -1077,8 +1368,8 @@ function renderSearchImages(imgs) {
 function saveImages(subfolder) {
   if (!_outputDir) return;
   pywebview.api.save_images(_outputDir, subfolder).then(r => {
-    if (r.success) addLog('💾 已保存 ' + r.saved + ' 个文件到所选目录', 'success');
-    else if (r.error !== '已取消') addLog('💾 保存失败: ' + r.error, 'error');
+    if (r.success) addLog('已保存 ' + r.saved + ' 个文件到所选目录', 'success');
+    else if (r.error !== '已取消') addLog('保存失败: ' + r.error, 'error');
   });
 }
 
@@ -1093,7 +1384,7 @@ function startCopyPolling(outputDir) {
       if (data && data.error) {
         clearInterval(_copyPollTimer);
         _copyPollTimer = null;
-        document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji">📝</span><p>文案生成失败: ' + escapeHtml(data.error) + '</p></div>';
+        document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-pen"/></svg></span><p>文案生成失败: ' + escapeHtml(data.error) + '</p></div>';
         return;
       }
       if (data && data.versions && data.versions.length > 0) {
@@ -1101,32 +1392,32 @@ function startCopyPolling(outputDir) {
         _copyPollTimer = null;
         _copiesData = data;
         document.getElementById('pane3').innerHTML = renderCopies(data);
-        addLog('📝 文案生成完成！V1/V2/V3已就绪', 'success');
+        addLog('文案生成完成！V1/V2/V3已就绪', 'success');
       }
     });
     // 超时保护：5分钟
     if (pollCount > 100) {
       clearInterval(_copyPollTimer);
       _copyPollTimer = null;
-      document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji">📝</span><p>文案生成超时，请点击刷新重试</p></div>';
+      document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-pen"/></svg></span><p>文案生成超时，请点击刷新重试</p></div>';
     }
   }, 3000); // 每3秒检查一次
 }
 
 function renderCopies(data) {
-  if (!data.versions || data.versions.length === 0) return '<div class="empty"><span class="emoji">📝</span><p>无文案</p></div>';
+  if (!data.versions || data.versions.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-pen"/></svg></span><p>无文案</p></div>';
   let html = '<div class="copy-tabs">';
   data.versions.forEach((v, i) => {
     html += '<div class="copy-tab' + (i === 0 ? ' active' : '') + '" onclick="switchCopy(' + i + ')" data-version="' + v.key + '">' +
-      '<span>' + v.label + '</span><span class="refresh-icon" onclick="event.stopPropagation();refreshCopy(' + i + ')" title="重新生成">🔄</span></div>';
+      '<span>' + v.label + '</span><span class="refresh-icon" onclick="event.stopPropagation();refreshCopy(' + i + ')" title="重新生成"><svg class="ico"><use href="#i-refresh"/></svg></span></div>';
   });
   html += '</div><div id="copyBody"></div>';
   // V3自定义提示词区域
-  html += '<div class="custom-prompt-area" style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.05);border-radius:12px;">';
-  html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">💡 V3自定义提示词（可选，不填则默认重写）</div>';
+  html += '<div class="custom-prompt-area" style="margin-top:12px;padding:10px;background:var(--glass-light);border-radius:12px;">';
+  html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;"><svg class="ico"><use href="#i-info"/></svg> V3自定义提示词（可选，不填则默认重写）</div>';
   html += '<div style="display:flex;gap:8px;">';
-  html += '<input type="text" id="v3CustomPrompt" placeholder="例如：突出性价比，加上使用场景，语气活泼一点" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />';
-  html += '<button class="btn-refresh" onclick="v3CustomRewrite()" style="white-space:nowrap;">🔄 按提示词重写</button>';
+  html += '<input type="text" id="v3CustomPrompt" placeholder="例如：突出性价比，加上使用场景，语气活泼一点" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:13px;" />';
+  html += '<button class="btn-refresh" onclick="v3CustomRewrite()" style="white-space:nowrap;"><svg class="ico"><use href="#i-refresh"/></svg> 按提示词重写</button>';
   html += '</div></div>';
   window._copies = data.versions;
   setTimeout(() => { switchCopy(0); }, 50);
@@ -1137,11 +1428,11 @@ function switchCopy(idx) {
   document.querySelectorAll('.copy-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const v = window._copies[idx];
   const badge = v.banned.length > 0
-    ? '<span class="badge-warn">⚠️ 违禁词: ' + v.banned.join(',') + '</span>'
-    : '<span class="badge-ok">✅ 零违禁词</span>';
+    ? '<span class="badge-warn"><svg class="ico"><use href="#i-alert"/></svg> 违禁词: ' + v.banned.join(',') + '</span>'
+    : '<span class="badge-ok"><svg class="ico"><use href="#i-check"/></svg> 零违禁词</span>';
   document.getElementById('copyBody').innerHTML =
     '<div class="copy-meta"><span>' + v.text.length + '字</span>' + badge +
-    '<button class="btn-copy" onclick="copyText(' + idx + ')" style="margin-left:auto;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;">📋 一键复制</button></div>' +
+    '<button class="btn-copy" onclick="copyText(' + idx + ')" style="margin-left:auto;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制</button></div>' +
     '<div class="copy-content" id="copyText_' + idx + '">' + escapeHtml(v.text) + '</div>';
 }
 
@@ -1152,18 +1443,18 @@ function refreshCopy(idx) {
   const refreshIcon = tab.querySelector('.refresh-icon');
   refreshIcon.textContent = '⏳';
 
-  addLog('🔄 重新生成 ' + v.label + '...', 'accent');
+  addLog('重新生成 ' + v.label + '...', 'accent');
 
   pywebview.api.regenerate_copy(_outputDir, v.key).then(r => {
     if (r.success) {
       window._copies[idx].text = r.text;
       window._copies[idx].banned = r.banned;
       switchCopy(idx);
-      addLog('✅ ' + v.label + ' 重新生成完成 (' + r.text.length + '字)', 'success');
+      addLog('' + v.label + ' 重新生成完成 (' + r.text.length + '字)', 'success');
     } else {
-      addLog('💥 重新生成失败: ' + r.error, 'error');
+      addLog('重新生成失败: ' + r.error, 'error');
     }
-    refreshIcon.textContent = '🔄';
+    refreshIcon.textContent = '<svg class="ico"><use href="#i-refresh"/></svg>';
   });
 }
 
@@ -1173,7 +1464,7 @@ function copyText(idx) {
   const title = window._copies[idx].label;
   // 用clipboard API
   navigator.clipboard.writeText(text).then(() => {
-    addLog('📋 已复制 ' + title + ' (' + text.length + '字)', 'success');
+    addLog('已复制 ' + title + ' (' + text.length + '字)', 'success');
   }).catch(() => {
     // fallback
     const ta = document.createElement('textarea');
@@ -1182,7 +1473,7 @@ function copyText(idx) {
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    addLog('📋 已复制 ' + title, 'success');
+    addLog('已复制 ' + title, 'success');
   });
 }
 
@@ -1193,27 +1484,27 @@ function v3CustomRewrite() {
     setStatus('请输入自定义提示词', 'error');
     return;
   }
-  addLog('🔄 V3按自定义提示词重写...', 'accent');
+  addLog('V3按自定义提示词重写...', 'accent');
   pywebview.api.regenerate_copy(_outputDir, 'v3', prompt).then(r => {
     if (r.success) {
       window._copies[2].text = r.text;
       window._copies[2].banned = r.banned;
       switchCopy(2);
-      addLog('✅ V3自定义重写完成 (' + r.text.length + '字)', 'success');
+      addLog('V3自定义重写完成 (' + r.text.length + '字)', 'success');
     } else {
-      addLog('💥 V3重写失败: ' + r.error, 'error');
+      addLog('V3重写失败: ' + r.error, 'error');
     }
   });
 }
 
 function downloadVideo() {
   if (!_outputDir) return;
-  addLog('⬇️ 正在下载视频...', 'accent');
+  addLog('<svg class="ico"><use href="#i-download"/></svg> 正在下载视频...', 'accent');
   pywebview.api.download_video(_outputDir).then(r => {
     if (r.success) {
-      addLog('✅ 视频已保存: ' + r.path, 'success');
+      addLog('视频已保存: ' + r.path, 'success');
     } else {
-      if (r.error !== '已取消') addLog('💥 视频下载失败: ' + r.error, 'error');
+      if (r.error !== '已取消') addLog('视频下载失败: ' + r.error, 'error');
     }
   });
 }
@@ -1223,17 +1514,17 @@ function searchSupplementImages() {
   const maxImg = parseInt(document.getElementById('searchMax').value) || 15;
   const btn = document.getElementById('searchSupplementBtn');
   if (btn) { btn.classList.add('loading'); btn.disabled = true; }
-  addLog('🔍 开始搜索补充图（最多' + maxImg + '张）...', 'accent');
+  addLog('开始搜索补充图（最多' + maxImg + '张）...', 'accent');
 
   pywebview.api.refresh_search(_outputDir, maxImg).then(r => {
     if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
     if (r.success) {
-      addLog('✅ 搜到 ' + r.count + ' 张补充图', 'success');
+      addLog('搜到 ' + r.count + ' 张补充图', 'success');
       pywebview.api.get_images(_outputDir, 'search').then(imgs => {
         document.getElementById('pane4').innerHTML = renderSearchImages(imgs);
       });
     } else {
-      addLog('💥 搜索失败: ' + r.error, 'error');
+      addLog('搜索失败: ' + r.error, 'error');
     }
   });
 }
@@ -1300,7 +1591,7 @@ window._onSilentUpdateCheck = function(result) {
     dot.className = 'dot has-update';
     text.textContent = '新版本 v' + result.latest_version;
     // 静默模式下只在日志区域显示提示，不弹窗
-    addLog('✨ 发现新版本 v' + result.latest_version + '，点击右上角按钮查看详情', 'accent');
+    addLog('发现新版本 v' + result.latest_version + '，点击右上角按钮查看详情', 'accent');
   }
 };
 
@@ -1323,14 +1614,14 @@ function showUpdateModal(info) {
 
   const overlay = document.createElement('div');
   overlay.id = 'updateOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
 
   let contentHtml = '';
 
   if (info.error) {
     // 网络错误
     contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;">📡</div>
+      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-globe"/></svg></div>
       <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">检查更新失败</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;line-height:1.6;">网络连接失败，请稍后重试</p>
       <p style="color:var(--text-dim);font-size:11px;margin-bottom:20px;opacity:0.6;">${escapeHtml(info.error)}</p>
@@ -1339,7 +1630,7 @@ function showUpdateModal(info) {
   } else if (info.no_update) {
     // 已是最新
     contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;">✅</div>
+      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-check"/></svg></div>
       <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已是最新版本</h2>
       <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;">当前版本 v${info.current || '1.0'}，无需更新</p>
       <button onclick="document.getElementById('updateOverlay').remove()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">好的</button>
@@ -1348,18 +1639,18 @@ function showUpdateModal(info) {
     // 有新版本
     const notes = info.release_notes || '';
     const notesHtml = notes ? `
-      <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;margin-bottom:16px;max-height:150px;overflow-y:auto;">
+      <div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:16px;max-height:150px;overflow-y:auto;">
         <pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text-dim);font-size:12px;line-height:1.6;margin:0;font-family:inherit;">${escapeHtml(notes)}</pre>
       </div>` : '';
 
     contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;">✨</div>
+      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-sparkle"/></svg></div>
       <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">发现新版本</h2>
       <p style="color:var(--accent2);font-size:16px;margin-bottom:6px;font-weight:600;">v${escapeHtml(info.latest_version)}</p>
       <p style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">当前版本 v${escapeHtml(info.current_version)}</p>
       ${notesHtml}
       <div id="updateDownloadArea" style="margin-bottom:16px;">
-        <div style="background:rgba(0,0,0,0.2);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">
+        <div style="background:var(--panel-bg);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">
           <div id="updateDownloadBar" style="height:100%;background:var(--accent-grad);background-size:200% 100%;width:0%;border-radius:8px;transition:width 0.3s ease;animation:shimmer 2s linear infinite;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);">
@@ -1370,7 +1661,7 @@ function showUpdateModal(info) {
       <div style="display:flex;gap:10px;">
         <button onclick="skipUpdate('${String(info.latest_version || '').replace(/[^0-9A-Za-z.]/g, '')}')" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;">跳过此版本</button>
         <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">稍后</button>
-        <button id="downloadUpdateBtn" onclick="downloadUpdate()" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">⬇️ 下载更新</button>
+        <button id="downloadUpdateBtn" onclick="downloadUpdate()" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-download"/></svg> 下载更新</button>
       </div>
     `;
   }
@@ -1393,14 +1684,14 @@ function downloadUpdate() {
   pywebview.api.download_update().then(result => {
     if (result.success) {
       status.textContent = '已打开浏览器下载';
-      btn.textContent = '✅ 已打开浏览器';
+      btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已打开浏览器';
 
       // 替换弹窗内容为提示
       const overlay = document.getElementById('updateOverlay');
       if (overlay) {
         overlay.innerHTML = `
           <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-            <div style="font-size:44px;margin-bottom:14px;">🌐</div>
+            <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-globe"/></svg></div>
             <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已打开浏览器</h2>
             <p style="color:var(--text-dim);font-size:13px;margin-bottom:8px;line-height:1.6;">浏览器正在下载安装包，下载完成后运行安装即可。</p>
             <p style="color:var(--accent2);font-size:12px;margin-bottom:20px;">安装前请先关闭当前程序</p>
@@ -1411,13 +1702,13 @@ function downloadUpdate() {
     } else {
       status.textContent = '打开失败';
       btn.disabled = false;
-      btn.textContent = '⬇️ 重新尝试';
+      btn.textContent = '<svg class="ico"><use href="#i-download"/></svg> 重新尝试';
       status.style.color = 'var(--error)';
       status.textContent = '失败: ' + (result.error || '未知错误');
     }
   }).catch(err => {
     btn.disabled = false;
-    btn.textContent = '⬇️ 重新下载';
+    btn.textContent = '<svg class="ico"><use href="#i-download"/></svg> 重新下载';
     status.style.color = 'var(--error)';
     status.textContent = '失败: ' + err.toString();
   });
@@ -1426,30 +1717,25 @@ function downloadUpdate() {
 function runInstaller(path) {
   pywebview.api.open_file(path).then(r => {
     if (r.success) {
-      addLog('📦 已启动安装程序，请关闭当前程序后继续安装', 'accent');
+      addLog('已启动安装程序，请关闭当前程序后继续安装', 'accent');
       document.getElementById('updateOverlay').remove();
     } else {
-      addLog('💥 启动安装程序失败: ' + r.error, 'error');
+      addLog('启动安装程序失败: ' + r.error, 'error');
     }
   });
 }
 
-// 跳过此版本：记录到localStorage，不再提示
+// 跳过此版本：记录到后端状态文件，不再提示
 function skipUpdate(version) {
-  try {
-    localStorage.setItem('skipVersion', version);
-    addLog('⏭️ 已跳过 v' + version + '，下次有更新仍会提示', 'accent');
-  } catch(e) {}
-  document.getElementById('updateOverlay').remove();
+  patchUiState({ skip_version: version });
+  addLog('已跳过 v' + version + '，下次有更新仍会提示', 'accent');
+  const ov = document.getElementById('updateOverlay');
+  if (ov) ov.remove();
 }
 
 // 检查是否已跳过该版本
 function isVersionSkipped(version) {
-  try {
-    return localStorage.getItem('skipVersion') === version;
-  } catch(e) {
-    return false;
-  }
+  return _uiState.skip_version === version;
 }
 
 // 启动时自动检查更新（静默）
