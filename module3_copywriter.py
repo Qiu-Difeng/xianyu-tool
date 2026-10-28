@@ -230,6 +230,7 @@ V2_PROMPT = """你是闲鱼文案改写专家。请对以下商品文案做【�
 7. 不要加标题，只输出正文
 8. 不要用"白菜价""超级""最"等违禁词
 9. 输出纯文本，不要分段标题
+10. 以下词语一律不得出现（出现即违规）：{banned}
 
 原文：
 {desc}
@@ -247,6 +248,7 @@ V3_PROMPT = """你是闲鱼文案专家。请基于以下商品信息【完整�
 7. 不要用"白菜价""超级""最""第一""绝对"等违禁词
 8. 不要喊"亲们""快来抢购"等话术
 9. 输出纯文本，不要分段标题
+10. 以下词语一律不得出现（出现即违规）：{banned}
 
 商品标题：{title}
 原文案（参考卖点，不要照抄）：
@@ -288,11 +290,13 @@ def call_glm(prompt, max_tokens=1200, temperature=0.7, timeout=60, retries=2):
     raise RuntimeError(f"GLM 调用失败（已重试 {retries} 次）：{last_err}")
 
 def v2_ai_light_rewrite(title, desc, banned_str, temperature=0.7):
-    prompt = V2_PROMPT.format(desc=desc)
+    # banned_str 之前只作为参数传进来，从未写进 prompt，
+    # AI 根本不知道具体哪些词不能用，只能靠规则 8 里列的那几个
+    prompt = V2_PROMPT.format(desc=desc, banned=banned_str)
     return post_process(call_glm(prompt, max_tokens=1200, temperature=temperature))
 
 def v3_ai_full_rewrite(title, desc, banned_str, temperature=0.7):
-    prompt = V3_PROMPT.format(title=title, desc=desc)
+    prompt = V3_PROMPT.format(title=title, desc=desc, banned=banned_str)
     return post_process(call_glm(prompt, max_tokens=1000, temperature=temperature))
 
 def v3_ai_custom_rewrite(title, desc, custom_prompt, temperature=0.7):
@@ -308,7 +312,8 @@ def v3_ai_custom_rewrite(title, desc, custom_prompt, temperature=0.7):
 3. 禁止emoji
 4. 不要用"白菜价""超级""最""第一""绝对"等违禁词
 5. 不要喊"亲们""快来抢购"等话术
-6. 输出纯文本
+6. 以下词语一律不得出现（出现即违规）：{"、".join(BANNED_WORDS)}
+7. 输出纯文本
 
 商品标题：{title}
 原文案（参考）：
@@ -322,7 +327,7 @@ def v3_ai_custom_rewrite(title, desc, custom_prompt, temperature=0.7):
 import random
 
 def generate_versions(title, desc):
-    banned_str = ", ".join(BANNED_WORDS[:15])
+    banned_str = "、".join(BANNED_WORDS)
     
     print(f"商品标题: {title}")
     print(f"原文案字数: {len(desc)}")
@@ -383,7 +388,7 @@ def regenerate_v2(title, desc, temperature=None):
     """重新生成V2——用不同temperature，每次结果不同"""
     if temperature is None:
         temperature = round(random.uniform(0.6, 0.95), 2)
-    banned_str = "、".join(BANNED_WORDS[:15])
+    banned_str = "、".join(BANNED_WORDS)
     return post_process(v2_ai_light_rewrite(title, desc, banned_str, temperature=temperature))
 
 
@@ -391,7 +396,7 @@ def regenerate_v3(title, desc, temperature=None, custom_prompt=None):
     """重新生成V3——用不同temperature，每次结果不同；支持自定义提示词"""
     if temperature is None:
         temperature = round(random.uniform(0.6, 0.95), 2)
-    banned_str = "、".join(BANNED_WORDS[:15])
+    banned_str = "、".join(BANNED_WORDS)
     if custom_prompt:
         return post_process(v3_ai_custom_rewrite(title, desc, custom_prompt, temperature=temperature))
     return post_process(v3_ai_full_rewrite(title, desc, banned_str, temperature=temperature))
