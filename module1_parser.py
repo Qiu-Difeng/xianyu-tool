@@ -39,12 +39,35 @@ LOGIN_FLAG = os.path.join(CHROME_USER_DATA, 'logged_in.flag')
 # 浏览器管理（旧CDP函数已删除，改用Playwright自带Chromium）
 # ============================================================
 
+# 系统自带浏览器候选路径。playwright 打包时不会带上 Chromium 本体（400MB+），
+# 而 launch_persistent_context 默认只认 %LOCALAPPDATA%\ms-playwright 下的缓存。
+# 别人电脑没执行过 playwright install，那里是空的，会直接报
+# "Executable doesn't exist"。Win10/11 都自带 Edge（同为 Chromium 内核），
+# 用它兜底，用户就不需要额外下载任何东西。
+_SYSTEM_BROWSER_CANDIDATES = [
+    r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+    r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
+    r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+]
+
+
+def find_system_browser():
+    """返回系统已安装的 Edge/Chrome 可执行文件路径，没有则返回 None"""
+    for path in _SYSTEM_BROWSER_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    return None
+
+
 async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
     """
-    启动Playwright自带Chromium（独立数据目录，不影响用户日常浏览器）
+    启动浏览器（独立数据目录，不影响用户日常浏览器）
+    优先 playwright 自带 Chromium（保持已有登录态兼容），
+    本机没有该浏览器时自动回退到系统 Edge/Chrome
     headless=True时真正无头模式（不弹窗）
     hide_window=True时窗口移到屏幕外（避免headless被闲鱼检测）
-    返回: (playwright_instance, browser, context) 或 (None, None, None)
+    返回: (playwright_instance, context, True) 或 (None, None, False)
     """
     from playwright.async_api import async_playwright
     
@@ -58,17 +81,49 @@ async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
     ]
     if hide_window:
         args_list.append('--window-position=-32000,-32000')
-    
+
+    launch_kwargs = {
+        'user_data_dir': CHROME_USER_DATA,
+        'headless': headless,
+        'args': args_list,
+        'viewport': {'width': 1280, 'height': 800},
+    }
+
     pw = None
     try:
         pw = await async_playwright().start()
-        browser = await pw.chromium.launch_persistent_context(
-            user_data_dir=CHROME_USER_DATA,
-            headless=headless,
-            args=args_list,
-            viewport={'width': 1280, 'height': 800},
-        )
-        if headless:
+
+        browser = None
+        used_system = False
+        try:
+            browser = await pw.chromium.launch_persistent_context(**launch_kwargs)
+        except Exception as e:
+            # 只在本机缺 Chromium 时回退；其他错误（如目录被占用）原样抛出
+            msg = str(e)
+            need_fallback = ("Executable doesn't exist" in msg
+                             or "executable doesn't exist" in msg.lower()
+                             or "playwright install" in msg.lower())
+            if not need_fallback:
+                raise
+            exe = find_system_browser()
+            if not exe:
+                raise RuntimeError(
+                    "本机既没有 Playwright 的 Chromium，也没有找到 Edge/Chrome。"
+                    "请安装 Microsoft Edge，或运行：python -m playwright install chromium"
+                )
+            print(f"  ⚠ 未找到 Chromium，改用系统浏览器: {os.path.basename(exe)}")
+            launch_kwargs['executable_path'] = exe
+            browser = await pw.chromium.launch_persistent_context(**launch_kwargs)
+            used_system = True
+
+        if used_system:
+            if headless:
+                print(f"  ✓ 已启动系统浏览器（后台无头模式）")
+            elif hide_window:
+                print(f"  ✓ 已启动系统浏览器（后台静默模式）")
+            else:
+                print(f"  ✓ 已启动系统浏览器（独立窗口，请扫码登录）")
+        elif headless:
             print(f"  ✓ 已启动Chromium（后台无头模式）")
         elif hide_window:
             print(f"  ✓ 已启动Chromium（后台静默模式）")
@@ -76,7 +131,7 @@ async def launch_chrome_debug(port=9222, headless=False, hide_window=False):
             print(f"  ✓ 已启动Chromium（独立窗口，请扫码登录）")
         return pw, browser, True
     except Exception as e:
-        print(f"  ✗ Chromium启动失败: {e}")
+        print(f"  ✗ 浏览器启动失败: {e}")
         # 启动失败时必须停掉已创建的 playwright 实例，否则 node 子进程残留
         try:
             if pw is not None:
