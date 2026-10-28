@@ -76,7 +76,11 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInstSuccess
-    WriteRegStr HKCU "Software\\XianyuTool" "Version" "1.3.6"
+    ; 单反斜杠：与第 48 行 InstallDir 的写法保持一致。
+    ; NSIS 字符串不做转义，"Software\\XianyuTool" 会原样写成双反斜杠，
+    ; 而程序侧 _get_local_version() 读的是 Software\XianyuTool\Version，
+    ; 路径不一致会导致版本号永远读不到（每次启动都提示有新版本）。
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.6"
 FunctionEnd
 
 
