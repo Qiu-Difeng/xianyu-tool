@@ -53,10 +53,40 @@ _SYSTEM_BROWSER_CANDIDATES = [
 
 
 def find_system_browser():
-    """返回系统已安装的 Edge/Chrome 可执行文件路径，没有则返回 None"""
+    """返回系统已安装的 Edge/Chrome 可执行文件路径，没有则返回 None
+
+    三级查找：常见安装路径 -> 注册表 App Paths（覆盖自定义安装目录）-> PATH
+    """
     for path in _SYSTEM_BROWSER_CANDIDATES:
         if os.path.exists(path):
             return path
+
+    # 注册表 App Paths：Edge/Chrome 安装时会写入，能覆盖装在非默认盘的情况
+    try:
+        import winreg
+        for sub in (r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe',
+                    r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'):
+            for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(hive, sub) as key:
+                        path = winreg.QueryValue(key, None)
+                    if path and os.path.exists(path):
+                        return path
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+    # 最后在 PATH 里找一遍
+    try:
+        import shutil
+        for name in ('msedge.exe', 'chrome.exe'):
+            path = shutil.which(name)
+            if path:
+                return path
+    except Exception:
+        pass
+
     return None
 
 
