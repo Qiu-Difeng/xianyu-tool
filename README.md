@@ -61,14 +61,27 @@ The goal is to make AI accessible and useful for everyday e-commerce users.
 
 > **不需要安装Python、Chrome或任何依赖。**
 
-#### 关于 API Key
+#### 关于 API Key 与大模型
 
-安装包**不内置任何 Key**，请用你自己的（GLM-4-Flash 与 GLM-4V-Flash 均免费）：
-[申请地址](https://open.bigmodel.cn/)
+安装包**不内置任何 Key**，请用你自己的。
 
-程序首次启动会自动弹出配置窗口；之后想修改，点右上角的「Key 已配置」按钮即可。
-Key 存在 `%LOCALAPPDATA%\XianyuTool\api_config.json`，只在本机读取，不会上传。
-也支持环境变量 `ZHIPUAI_API_KEY`（优先级更高）。
+程序首次启动会自动弹出配置窗口，选服务商、粘贴 Key、点「保存并验证」即可。
+之后想修改，点右上角的「Key 已配置」按钮。
+
+**支持的服务商**（都走 OpenAI 兼容协议）：
+
+| 服务商 | 文本模型 | 视觉模型（去水印） | 备注 |
+|--------|----------|-------------------|------|
+| 智谱 AI（推荐） | glm-4-flash | glm-4v-flash | 两个都免费不限量 |
+| 魔搭 ModelScope | Qwen2.5-72B-Instruct | Qwen2-VL-7B-Instruct | 有免费额度 |
+| DeepSeek | deepseek-chat | — | **不支持图片**，去水印需另配视觉模型 |
+| 自定义 | 任意 | 任意 | 填任意兼容 `/chat/completions` 的地址 |
+
+**文本模型和视觉模型可以分开配**——勾选窗口里的「高级：文本/视觉分开配」，
+就能让文案走 DeepSeek、去水印走智谱，两边各用各的 Key。
+
+> 视觉模型必须支持图片输入，否则去水印会提示不可用。
+> 配置存在 `%LOCALAPPDATA%\XianyuTool\api_config.json`，只在本机读取，不会上传。
 
 ### 从源码运行
 
