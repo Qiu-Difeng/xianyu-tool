@@ -87,13 +87,19 @@ def _detect_watermark_region_glm4v(img_path):
 
 
 def _feather_blend(result, original, y1, y2, x1, x2, feather=12):
-    """羽化贴回：边缘渐变过渡，避免明显接缝"""
+    """羽化贴回：中心用修复结果，边缘渐变过渡回原图，避免明显接缝
+
+    blend_mask 语义：1.0 = 完全采用 result（LaMa 修复结果），0.0 = 完全采用 original
+    区域中心为 1.0，向四周 feather 像素内线性衰减到 0，形成无缝过渡。
+    """
     h, w = result.shape[:2]
     blend_mask = np.zeros((h, w), dtype=np.float32)
     blend_mask[y1:y2, x1:x2] = 1.0
 
-    for i in range(min(feather, (y2 - y1) // 2, (x2 - x1) // 2)):
-        alpha = i / max(feather, 1)
+    # 羽化半径不能超过区域一半，否则中心永远到不了 1.0（小水印会残留）
+    radius = max(1, min(feather, (y2 - y1) // 2, (x2 - x1) // 2))
+    for i in range(radius):
+        alpha = (i + 1) / radius  # 最外圈接近 0（保留原图），最内圈达到 1.0（采用修复）
         if y1 + i < y2:
             blend_mask[y1+i, x1:x2] = np.minimum(blend_mask[y1+i, x1:x2], alpha)
         if y2 - 1 - i > y1:
@@ -107,7 +113,8 @@ def _feather_blend(result, original, y1, y2, x1, x2, feather=12):
     if len(result.shape) == 3:
         blend_mask = blend_mask[:, :, np.newaxis]
 
-    return (result * (1 - blend_mask) + original * blend_mask).astype(np.uint8)
+    # blend_mask=1 处采用 result（已修复），=0 处采用 original（保留原像素）
+    return (result * blend_mask + original * (1 - blend_mask)).astype(np.uint8)
 
 
 def process_single_image(img_path, output_path, reference_image=None):
