@@ -169,70 +169,146 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    # ============ API Key 配置 ============
-    def get_key_status(self):
-        """返回 Key 配置状态，供界面判断是否需要在首次启动时引导填写"""
+    # ============ 大模型配置 ============
+    def get_llm_config(self):
+        """返回完整配置状态与预设，供界面渲染"""
         try:
-            from module3_copywriter import resolve_api_key
-            key, source = resolve_api_key()
-            if not key:
-                return {"configured": False, "source": "", "masked": ""}
-            masked = (key[:6] + "……" + key[-4:]) if len(key) > 12 else "已配置"
-            return {"configured": True, "source": source, "masked": masked}
+            import llm_provider as lp
+            cfg = lp.load_config()
+
+            def pack(sec):
+                return {
+                    'provider': sec['provider'],
+                    'base_url': sec['base_url'],
+                    'model': sec['model'],
+                    'api_key': sec['api_key'],
+                    'key_masked': lp.mask_key(sec['api_key']),
+                    'available': bool(sec['api_key'] and sec['model']),
+                }
+
+            text = pack(cfg['text'])
+            vision = pack(cfg['vision'])
+            return {
+                'success': True,
+                'presets': lp.PRESETS,
+                'config_path': lp.config_path(),
+                'text': text,
+                'vision': vision,
+                'same_key': text['api_key'] == vision['api_key'] if text['api_key'] and vision['api_key'] else True,
+                'configured': text['available'],
+            }
         except Exception as e:
-            return {"configured": False, "source": "", "masked": "", "error": str(e)}
+            return {'success': False, 'error': str(e), 'configured': False}
+
+    def get_key_status(self):
+        """兼容旧接口：只关心文本模型是否可用"""
+        info = self.get_llm_config()
+        if not info.get('success'):
+            return {"configured": False, "masked": "", "error": info.get('error')}
+        return {
+            "configured": info['text']['available'],
+            "masked": info['text']['key_masked'],
+            "source": info.get('config_path', ''),
+        }
+
+    def save_llm_config(self, text_sec, vision_sec):
+        """保存文本/视觉两组模型配置，并立即生效"""
+        try:
+            import llm_provider as lp
+
+            def clean(sec, kind):
+                sec = sec or {}
+                base = (sec.get('base_url') or '').strip().rstrip('/')
+                key = (sec.get('api_key') or '').strip()
+                model = (sec.get('model') or '').strip()
+                if key and '在此填入' in key:
+                    raise ValueError('请填写真实的 Key，不要用占位符')
+                if key and any(c.isspace() for c in key):
+                    raise ValueError('Key 里不能有空格或换行')
+                if key and len(key) < 12:
+                    raise ValueError('Key 太短，可能没复制完整')
+                if base and not (base.startswith('http://') or base.startswith('https://')):
+                    raise ValueError('API 地址要以 http:// 或 https:// 开头')
+                if model and any(c.isspace() for c in model):
+                    raise ValueError('模型名里不能有空格')
+                return {
+                    'provider': (sec.get('provider') or 'zhipu').strip(),
+                    'base_url': base or lp.ZHIPU_BASE,
+                    'api_key': key,
+                    'model': model or (lp.DEFAULT_TEXT_MODEL if kind == 'text'
+                                       else lp.DEFAULT_VISION_MODEL),
+                }
+
+            text = clean(text_sec, 'text')
+            vision = clean(vision_sec, 'vision')
+
+            # 视觉模型可以为空（比如用 DeepSeek 做文案、暂不配视觉）
+            if not vision['api_key']:
+                vision = {
+                    'provider': 'zhipu',
+                    'base_url': lp.ZHIPU_BASE,
+                    'api_key': '',
+                    'model': '',
+                }
+
+            path = lp.save_config(text, vision)
+            return {
+                'success': True,
+                'path': path,
+                'text_ready': bool(text['api_key']),
+                'vision_ready': bool(vision['api_key']),
+            }
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     def save_api_key(self, key):
-        """保存用户填写的 API Key，并立即生效（不用重启程序）"""
+        """兼容旧接口：单个 Key 同时作用于文本与视觉（智谱官方场景）"""
+        key = (key or '').strip()
+        if not key:
+            return {"success": False, "error": "请填写 API Key"}
+        import llm_provider as lp
+        text = {'provider': 'zhipu', 'base_url': lp.ZHIPU_BASE,
+                'api_key': key, 'model': lp.DEFAULT_TEXT_MODEL}
+        vision = {'provider': 'zhipu', 'base_url': lp.ZHIPU_BASE,
+                  'api_key': key, 'model': lp.DEFAULT_VISION_MODEL}
+        return self.save_llm_config(text, vision)
+
+    def test_llm(self, kind='text'):
+        """测试指定模型：text 走纯文本请求，vision 走一张内置小图"""
         try:
-            key = (key or "").strip()
-            if not key:
-                return {"success": False, "error": "请填写 API Key"}
-            if '在此填入' in key:
-                return {"success": False, "error": "这是占位符，请填真实的 Key"}
-            if any(c.isspace() for c in key):
-                return {"success": False, "error": "Key 里不能有空格或换行，请重新复制"}
-            if len(key) < 20:
-                return {"success": False, "error": "Key 太短，可能没复制完整"}
+            import llm_provider as lp
+            llm = lp.get_llm(kind)
+            if not llm.available():
+                return {"success": False,
+                        "error": ("未配置文本模型" if kind == 'text' else "未配置视觉模型")}
 
-            import module3_copywriter as m3
-            cfg_dir = m3._user_config_dir()
-            os.makedirs(cfg_dir, exist_ok=True)
-            cfg_path = os.path.join(cfg_dir, 'api_config.json')
-            with open(cfg_path, 'w', encoding='utf-8') as f:
-                json.dump({'zhipuai_key': key}, f, ensure_ascii=False, indent=2)
+            if kind == 'text':
+                reply = llm.ask('只回复两个字：可用', max_tokens=16,
+                                temperature=0.1, timeout=40, retries=1)
+                return {"success": True, "reply": reply[:20], "model": llm.model}
 
-            # 立即重载客户端，避免用户还要重启一次
-            m3.CLIENT = None
-            m3.API_KEY, m3.API_KEY_SOURCE = m3.resolve_api_key()
-            client = m3.get_client()
-            if client is None:
-                return {"success": False, "error": "已写入文件但加载失败，请重启程序"}
-            return {"success": True, "path": cfg_path}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def test_api_key(self):
-        """用一次极小的请求验证 Key 是否真的可用"""
-        try:
-            import module3_copywriter as m3
-            client = m3.get_client()
-            if client is None:
-                return {"success": False, "error": "尚未配置 Key"}
-            resp = client.chat.completions.create(
-                model=m3.MODEL,
-                messages=[{"role": "user", "content": "只回复两个字：可用"}],
-                max_tokens=16,
-                temperature=0.1,
-                timeout=30,
-            )
-            reply = (resp.choices[0].message.content or "").strip()[:20]
-            return {"success": True, "reply": reply}
+            # 视觉：生成一张 64x64 纯色小图让模型描述，验证它确实能处理图片
+            import base64
+            import io
+            from PIL import Image
+            buf = io.BytesIO()
+            Image.new('RGB', (64, 64), (200, 40, 40)).save(buf, 'JPEG')
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            reply = llm.ask_image(b64, '这张图是什么颜色？只回答颜色',
+                                  max_tokens=16, temperature=0.1,
+                                  timeout=40, retries=1)
+            return {"success": True, "reply": reply[:20], "model": llm.model}
         except Exception as e:
             msg = str(e)
-            if '401' in msg or 'auth' in msg.lower() or 'key' in msg.lower():
-                return {"success": False, "error": "Key 无效或已过期，请检查"}
-            return {"success": False, "error": msg[:160]}
+            if '401' in msg or '403' in msg or '鉴权' in msg:
+                return {"success": False, "error": "Key 无效或无权限访问该模型"}
+            return {"success": False, "error": msg[:180]}
+
+    def test_api_key(self):
+        """兼容旧接口"""
+        return self.test_llm('text')
 
     def open_url(self, url):
         """用默认浏览器打开链接（去申请 Key）"""

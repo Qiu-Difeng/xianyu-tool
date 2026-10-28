@@ -357,59 +357,184 @@ function updateKeyBtn(status) {
   }
 }
 
+let _llmInfo = null;   // 后端返回的配置与预设
+
 function showKeyModal(fromStartup) {
   const old = document.getElementById('keyOverlay');
   if (old) old.remove();
 
   const overlay = document.createElement('div');
   overlay.id = 'keyOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.86);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.86);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;overflow-y:auto;padding:20px 0;';
 
   overlay.innerHTML = `
-    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:32px;max-width:480px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;">
-      <div style="font-size:42px;text-align:center;margin-bottom:10px;">🔑</div>
-      <h2 style="color:var(--text);margin:0 0 10px;font-size:20px;text-align:center;">配置智谱 API Key</h2>
-      <p style="color:var(--text-dim);font-size:13px;line-height:1.7;margin:0 0 18px;text-align:center;">
-        本工具不内置 Key，需要填你自己的。<br>
-        GLM-4-Flash 与 GLM-4V-Flash <b style="color:var(--success);">免费且不限量</b>，注册即可用。
+    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:26px 30px;max-width:520px;width:92%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;max-height:90vh;overflow-y:auto;">
+      <div style="font-size:38px;text-align:center;margin-bottom:6px;">🔑</div>
+      <h2 style="color:var(--text);margin:0 0 8px;font-size:19px;text-align:center;">配置大模型</h2>
+      <p style="color:var(--text-dim);font-size:12px;line-height:1.6;margin:0 0 16px;text-align:center;">
+        本工具不内置 Key，需要填你自己的
       </p>
 
-      <input type="password" id="keyInput" placeholder="在这里粘贴你的 API Key"
-        style="width:100%;padding:13px 14px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.35);color:var(--text);font-size:14px;box-sizing:border-box;font-family:monospace;" />
+      <div style="margin-bottom:14px;">
+        <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px;">服务商</div>
+        <select id="keyPreset" onchange="onPresetChange()"
+          style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.35);color:var(--text);font-size:14px;box-sizing:border-box;"></select>
+        <div id="keyPresetHint" style="color:var(--accent2);font-size:11px;margin-top:6px;min-height:15px;"></div>
+      </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 16px;">
+      <div style="margin-bottom:10px;">
+        <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px;">API Key <span id="keyApplyLink" onclick="openKeyPage()" style="color:var(--accent2);cursor:pointer;margin-left:8px;">去申请 →</span></div>
+        <input type="password" id="keyInput" placeholder="在这里粘贴 API Key"
+          style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.35);color:var(--text);font-size:14px;box-sizing:border-box;font-family:monospace;" />
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <label style="color:var(--text-dim);font-size:12px;cursor:pointer;user-select:none;">
           <input type="checkbox" id="keyShow" onclick="toggleKeyVisible()" style="vertical-align:middle;margin-right:4px;" />显示明文
         </label>
-        <span onclick="openKeyPage()" style="color:var(--accent2);font-size:12px;cursor:pointer;">去申请 Key →</span>
+        <label style="color:var(--text-dim);font-size:12px;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="keyAdvanced" onclick="toggleAdvanced()" style="vertical-align:middle;margin-right:4px;" />高级：文本/视觉分开配
+        </label>
       </div>
 
-      <p id="keyHint" style="color:var(--text-dim);font-size:12px;min-height:18px;margin:0 0 14px;line-height:1.5;"></p>
+      <div id="keyAdvancedArea" style="display:none;border-top:1px solid var(--glass-border);padding-top:14px;margin-bottom:12px;">
+        <div style="color:var(--text);font-size:13px;font-weight:600;margin-bottom:8px;">📝 文本模型（写文案）</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input type="text" id="textBaseUrl" placeholder="API 地址"
+            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+          <input type="text" id="textModel" placeholder="模型名"
+            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+        </div>
+        <input type="password" id="textKey" placeholder="独立 Key（留空则用上面的 Key）"
+          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
+        <button onclick="testModel('text')" id="testTextBtn" style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-dim);font-size:12px;cursor:pointer;">测试文本模型</button>
+
+        <div style="color:var(--text);font-size:13px;font-weight:600;margin:14px 0 8px;">🖼️ 视觉模型（去水印，必须支持图片）</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input type="text" id="visionBaseUrl" placeholder="API 地址"
+            style="flex:2;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+          <input type="text" id="visionModel" placeholder="模型名"
+            style="flex:1;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;" />
+        </div>
+        <input type="password" id="visionKey" placeholder="独立 Key（留空则用上面的 Key）"
+          style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:monospace;margin-bottom:8px;box-sizing:border-box;" />
+        <button onclick="testModel('vision')" id="testVisionBtn" style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-dim);font-size:12px;cursor:pointer;">测试视觉模型</button>
+
+        <p style="color:var(--text-dim);font-size:11px;line-height:1.6;margin:12px 0 0;opacity:0.8;">
+          提示：DeepSeek 等纯文本服务不能做视觉模型，去水印需另外配一个支持图片的
+          （如智谱 glm-4v-flash、魔搭 Qwen2-VL）。地址末尾不要带斜杠。
+        </p>
+      </div>
+
+      <p id="keyHint" style="color:var(--text-dim);font-size:12px;min-height:18px;margin:0 0 12px;line-height:1.5;"></p>
 
       <div style="display:flex;gap:10px;">
         <button onclick="hideKeyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">稍后配置</button>
         <button id="keySaveBtn" onclick="saveKey()" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:#fff;font-size:15px;font-weight:600;cursor:pointer;">保存并验证</button>
       </div>
 
-      <p style="color:var(--text-dim);font-size:11px;margin:14px 0 0;text-align:center;opacity:0.75;">
-        Key 只保存在本机，不会上传。位置：%LOCALAPPDATA%\\XianyuTool\\api_config.json
+      <p style="color:var(--text-dim);font-size:11px;margin:12px 0 0;text-align:center;opacity:0.7;">
+        配置只存在本机，不会上传
       </p>
     </div>
   `;
   document.body.appendChild(overlay);
 
-  setTimeout(() => {
-    const inp = document.getElementById('keyInput');
-    if (inp) inp.focus();
-  }, 300);
+  loadLlmConfig(fromStartup);
+}
 
-  if (fromStartup) {
-    const hint = document.getElementById('keyHint');
-    if (hint) {
-      hint.textContent = '首次使用需要配置，配置后即可开始处理商品';
-      hint.style.color = 'var(--warn)';
+function loadLlmConfig(fromStartup) {
+  pywebview.api.get_llm_config().then(info => {
+    _llmInfo = info;
+    if (!info || !info.success) {
+      setKeyHint('读取配置失败：' + (info && info.error || '未知'), 'error');
+      return;
     }
+
+    // 填充服务商下拉
+    const sel = document.getElementById('keyPreset');
+    sel.innerHTML = '';
+    Object.keys(info.presets).forEach(k => {
+      const p = info.presets[k];
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = p.label;
+      sel.appendChild(opt);
+    });
+
+    // 判断当前该选哪个预设
+    const cur = info.text.provider || 'zhipu';
+    sel.value = Object.prototype.hasOwnProperty.call(info.presets, cur) ? cur : 'custom';
+
+    // 已配置的 key 回填（显示在输入框，方便直接保存）
+    if (info.text.api_key) {
+      document.getElementById('keyInput').value = info.text.api_key;
+    }
+    applyPresetValues(sel.value, info);
+
+    if (fromStartup) {
+      setKeyHint('首次使用需要配置，填好 Key 即可开始处理商品', 'warn');
+    }
+  }).catch(e => setKeyHint('读取配置异常：' + e, 'error'));
+}
+
+function applyPresetValues(presetKey, info) {
+  info = info || _llmInfo;
+  if (!info) return;
+  const p = info.presets[presetKey];
+  if (!p) return;
+
+  const hintEl = document.getElementById('keyPresetHint');
+  if (hintEl) hintEl.textContent = p.hint || '';
+
+  const linkEl = document.getElementById('keyApplyLink');
+  if (linkEl) linkEl.style.display = p.apply_url ? 'inline' : 'none';
+
+  // 只在对应用户还没手填时覆盖，避免把已保存的自定义值冲掉
+  const tb = document.getElementById('textBaseUrl');
+  const tm = document.getElementById('textModel');
+  const vb = document.getElementById('visionBaseUrl');
+  const vm = document.getElementById('visionModel');
+
+  if (presetKey === 'custom') {
+    if (!tb.value) tb.value = info.text.base_url || '';
+    if (!tm.value) tm.value = info.text.model || '';
+    if (!vb.value) vb.value = info.vision.base_url || '';
+    if (!vm.value) vm.value = info.vision.model || '';
+  } else {
+    if (tb) tb.value = p.base_url;
+    if (tm) tm.value = p.text_model;
+    if (vb) vb.value = p.base_url;
+    if (vm) vm.value = p.vision_model;
   }
+}
+
+function onPresetChange() {
+  const sel = document.getElementById('keyPreset');
+  applyPresetValues(sel.value);
+}
+
+function toggleAdvanced() {
+  const cb = document.getElementById('keyAdvanced');
+  const area = document.getElementById('keyAdvancedArea');
+  if (!cb || !area) return;
+  area.style.display = cb.checked ? 'block' : 'none';
+  if (cb.checked) {
+    // 用当前选中的预设填充，而不是用已保存的旧配置，
+    // 否则用户先选 DeepSeek 再勾"高级"，输入框会被旧值冲掉
+    const sel = document.getElementById('keyPreset');
+    applyPresetValues(sel ? sel.value : 'zhipu');
+  }
+}
+
+function setKeyHint(msg, level) {
+  const el = document.getElementById('keyHint');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = level === 'error' ? 'var(--error)'
+    : level === 'success' ? 'var(--success)'
+    : level === 'warn' ? 'var(--warn)'
+    : 'var(--text-dim)';
 }
 
 function hideKeyModal() {
@@ -424,65 +549,179 @@ function toggleKeyVisible() {
 }
 
 function openKeyPage() {
-  pywebview.api.open_url('https://open.bigmodel.cn/');
+  const sel = document.getElementById('keyPreset');
+  const key = sel ? sel.value : 'zhipu';
+  const p = (_llmInfo && _llmInfo.presets) ? _llmInfo.presets[key] : null;
+  pywebview.api.open_url((p && p.apply_url) || 'https://open.bigmodel.cn/');
+}
+
+// 从界面收集某一类模型的配置
+function collectSection(kind, fallbackKey) {
+  const presetEl = document.getElementById('keyPreset');
+  const preset = presetEl ? presetEl.value : 'zhipu';
+  if (kind === 'text') {
+    return {
+      provider: preset,
+      base_url: (document.getElementById('textBaseUrl').value || '').trim(),
+      model: (document.getElementById('textModel').value || '').trim(),
+      api_key: (document.getElementById('textKey').value || '').trim() || fallbackKey,
+    };
+  }
+  return {
+    provider: preset,
+    base_url: (document.getElementById('visionBaseUrl').value || '').trim(),
+    model: (document.getElementById('visionModel').value || '').trim(),
+    api_key: (document.getElementById('visionKey').value || '').trim() || fallbackKey,
+  };
+}
+
+// 把当前界面上的配置组装成 text / vision 两组
+function buildSections() {
+  const key = (document.getElementById('keyInput').value || '').trim();
+  const advEl = document.getElementById('keyAdvanced');
+  const adv = advEl && advEl.checked;
+  const presetEl = document.getElementById('keyPreset');
+  const preset = presetEl ? presetEl.value : 'zhipu';
+
+  if (adv) {
+    return { key: key, text: collectSection('text', key), vision: collectSection('vision', key), adv: true };
+  }
+
+  const p = (_llmInfo && _llmInfo.presets) ? _llmInfo.presets[preset] : null;
+  if (!p) return { key: key, text: null, vision: null, adv: false };
+
+  const text = { provider: preset, base_url: p.base_url, model: p.text_model, api_key: key };
+  let vision;
+  if (p.vision_ok && p.vision_model) {
+    vision = { provider: preset, base_url: p.base_url, model: p.vision_model, api_key: key };
+  } else {
+    // 该服务没有视觉能力（如 DeepSeek），视觉留空，去水印会提示未配置
+    vision = { provider: 'zhipu', base_url: '', model: '', api_key: '' };
+  }
+  return { key: key, text: text, vision: vision, adv: false };
 }
 
 function saveKey() {
-  const inp = document.getElementById('keyInput');
-  const hint = document.getElementById('keyHint');
   const btn = document.getElementById('keySaveBtn');
-  const key = inp ? inp.value.trim() : '';
+  const built = buildSections();
 
-  if (!key) {
-    hint.textContent = '请先粘贴 API Key';
-    hint.style.color = 'var(--error)';
+  if (!built.key) {
+    setKeyHint('请先粘贴 API Key', 'error');
+    return;
+  }
+  if (!built.text) {
+    setKeyHint('配置异常，请关闭重开', 'error');
+    return;
+  }
+  if (built.adv && !built.vision.model) {
+    setKeyHint('视觉模型缺模型名。去水印必须要一个支持图片的模型', 'error');
     return;
   }
 
   btn.disabled = true;
   btn.textContent = '保存中…';
-  hint.textContent = '正在保存并验证…';
-  hint.style.color = 'var(--text-dim)';
+  setKeyHint('正在保存…');
 
-  pywebview.api.save_api_key(key).then(r => {
+  pywebview.api.save_llm_config(built.text, built.vision).then(r => {
     if (!r.success) {
-      hint.textContent = r.error || '保存失败';
-      hint.style.color = 'var(--error)';
+      setKeyHint(r.error || '保存失败', 'error');
       btn.disabled = false;
       btn.textContent = '保存并验证';
       return;
     }
-    // 已写入，再打一次真实请求确认 Key 能用
-    pywebview.api.test_api_key().then(t => {
-      btn.disabled = false;
-      btn.textContent = '保存并验证';
-      if (t.success) {
-        hint.textContent = '✅ 验证通过，Key 可以使用';
-        hint.style.color = 'var(--success)';
+
+    setKeyHint('已保存，正在验证文本模型…');
+    pywebview.api.test_llm('text').then(t => {
+      if (!t.success) {
         _keyConfigured = true;
         updateKeyBtn({ configured: true });
-        addLog('🔑 API Key 配置完成', 'success');
-        setTimeout(() => {
-          hideKeyModal();
-          if (!guideSeenBefore()) showGuide();
-        }, 900);
-      } else {
-        hint.textContent = '已保存，但验证未通过：' + (t.error || '未知错误');
-        hint.style.color = 'var(--warn)';
-        _keyConfigured = true;
-        updateKeyBtn({ configured: true });
+        btn.disabled = false;
+        btn.textContent = '保存并验证';
+        setKeyHint('已保存，但文本模型验证失败：' + (t.error || ''), 'warn');
+        return;
       }
+      if (!r.vision_ready) {
+        finishSave(true, '视觉模型未配置，去水印功能不可用');
+        return;
+      }
+      setKeyHint('文本模型 ✓，正在验证视觉模型…', 'success');
+      pywebview.api.test_llm('vision').then(v => {
+        finishSave(v.success, v.success ? '' : (v.error || ''));
+      }).catch(e => finishSave(false, String(e)));
     }).catch(e => {
       btn.disabled = false;
       btn.textContent = '保存并验证';
-      hint.textContent = '验证异常：' + e;
-      hint.style.color = 'var(--warn)';
+      setKeyHint('验证异常：' + e, 'warn');
     });
   }).catch(e => {
     btn.disabled = false;
     btn.textContent = '保存并验证';
-    hint.textContent = '保存异常：' + e;
-    hint.style.color = 'var(--error)';
+    setKeyHint('保存异常：' + e, 'error');
+  });
+}
+
+function finishSave(visionOk, visionMsg) {
+  const btn = document.getElementById('keySaveBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '保存并验证';
+  }
+  _keyConfigured = true;
+  updateKeyBtn({ configured: true });
+
+  if (visionOk) {
+    setKeyHint('✅ 全部验证通过，可以开始用了', 'success');
+  } else {
+    setKeyHint('文本模型可用；' + (visionMsg || '视觉模型未通过验证') + '（去水印会不可用）', 'warn');
+  }
+  addLog('🔑 大模型配置已保存', 'success');
+  setTimeout(() => {
+    hideKeyModal();
+    if (!guideSeenBefore()) showGuide();
+  }, 1100);
+}
+
+// 单独测试某一类模型（先用当前界面值静默保存，再测）
+function testModel(kind) {
+  const btnId = kind === 'text' ? 'testTextBtn' : 'testVisionBtn';
+  const btn = document.getElementById(btnId);
+  const built = buildSections();
+  if (!built.key) {
+    setKeyHint('请先填 API Key', 'error');
+    return;
+  }
+  if (!built.text) return;
+
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '测试中…';
+  setKeyHint('正在保存当前配置…');
+
+  pywebview.api.save_llm_config(built.text, built.vision).then(r => {
+    if (!r.success) {
+      btn.disabled = false;
+      btn.textContent = oldText;
+      setKeyHint(r.error || '保存失败', 'error');
+      return;
+    }
+    setKeyHint('配置已保存，正在测试…');
+    pywebview.api.test_llm(kind).then(t => {
+      btn.disabled = false;
+      btn.textContent = oldText;
+      if (t.success) {
+        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 ✓ 回复：' + (t.reply || '正常'), 'success');
+      } else {
+        setKeyHint((kind === 'text' ? '文本' : '视觉') + '模型 ✗ ' + (t.error || '失败'), 'error');
+      }
+    }).catch(e => {
+      btn.disabled = false;
+      btn.textContent = oldText;
+      setKeyHint('测试异常：' + e, 'error');
+    });
+  }).catch(e => {
+    btn.disabled = false;
+    btn.textContent = oldText;
+    setKeyHint('保存异常：' + e, 'error');
   });
 }
 
