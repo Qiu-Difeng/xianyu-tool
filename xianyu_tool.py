@@ -40,10 +40,9 @@ else:
     WORKSPACE = os.path.dirname(os.path.abspath(__file__))
 # 输出到系统临时目录，每次运行前自动清空，最多只留最新一次
 OUTPUT_ROOT = os.path.join(os.environ.get('TEMP', os.path.expanduser('~')), 'xianyu_tool')
-# 启动时清空旧数据
-if os.path.exists(OUTPUT_ROOT):
-    import shutil
-    shutil.rmtree(OUTPUT_ROOT, ignore_errors=True)
+# 注意：这里不能删除 OUTPUT_ROOT 本身 —— anti_detect 的每日请求计数器
+# （request_count.json）也放在这个目录下，删掉会导致每次启动都从 0 重新计数，
+# 30 次/天的限额形同虚设。清理动作统一放到 run() 里，只删 output 子目录。
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
 # PYTHON路径已移除（未使用，改为sys.executable动态获取）
 
@@ -398,9 +397,11 @@ async def run(url, search_max=15):
     print("=" * 60)
     
     # 清空上一次的输出，只保留最新一次
-    if os.path.exists(OUTPUT_ROOT):
-        shutil.rmtree(OUTPUT_ROOT, ignore_errors=True)
-    os.makedirs(OUTPUT_ROOT, exist_ok=True)
+    # 只删 output 子目录，保留同级的请求计数文件（见 OUTPUT_ROOT 处的说明）
+    output_parent = os.path.join(OUTPUT_ROOT, "output")
+    if os.path.exists(output_parent):
+        shutil.rmtree(output_parent, ignore_errors=True)
+    os.makedirs(output_parent, exist_ok=True)
     
     # === 模块1：解析链接 ===
     print(f"\n{'='*60}")
