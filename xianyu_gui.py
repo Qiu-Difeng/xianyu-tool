@@ -319,6 +319,57 @@ class Api:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    # ============ 界面状态（引导/主题/跳过版本）============
+    # pywebview 用 html= 直接加载时页面是 about:blank，
+    # localStorage 与 sessionStorage 都是 SecurityError，
+    # 所以界面状态必须落到后端文件，不能存浏览器里。
+    def _ui_state_path(self):
+        base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+        return os.path.join(base, 'XianyuTool', 'ui_state.json')
+
+    def get_ui_state(self):
+        """读取界面状态"""
+        state = {'guide_seen': False, 'theme': 'system', 'skip_version': ''}
+        try:
+            path = self._ui_state_path()
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    for k in list(state.keys()):
+                        if k in data:
+                            state[k] = data[k]
+        except Exception:
+            pass
+        return state
+
+    def save_ui_state(self, patch):
+        """合并保存界面状态"""
+        try:
+            state = self.get_ui_state()
+            if isinstance(patch, dict):
+                for k in ('guide_seen', 'theme', 'skip_version'):
+                    if k in patch:
+                        state[k] = patch[k]
+            path = self._ui_state_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+            return {'success': True, 'state': state}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def get_system_theme(self):
+        """读注册表判断 Windows 当前是深色还是浅色"""
+        try:
+            import winreg
+            path = r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as k:
+                light, _ = winreg.QueryValueEx(k, 'AppsUseLightTheme')
+            return {'theme': 'light' if light else 'dark'}
+        except Exception:
+            return {'theme': 'dark'}
+
     def run_tool(self, url, search_max=15):
         # 同一时间只允许一个采集任务，避免超时后前后台两个 Chromium 抢用户数据目录
         with self._run_lock:
