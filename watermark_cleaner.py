@@ -55,27 +55,31 @@ def _img_to_base64(img_path):
         return base64.b64encode(f.read()).decode()
 
 
-def _get_zhipu_client():
-    """获取智谱客户端，复用 module3 的统一 Key 解析顺序。
+def _get_vision_llm():
+    """获取视觉模型客户端（复用 llm_provider 的统一配置）
 
-    原实现只读环境变量 ZHIPUAI_API_KEY，用户把 key 放在 api_config.json 时
-    这里永远拿不到，水印检测会一直返回 None（等于检测功能不可用）。
+    去水印必须用能看图的模型，因此单独取 vision 配置，
+    与写文案的 text 模型互不影响。
     """
     try:
-        from module3_copywriter import get_client
-        client = get_client()
-        if client is not None:
-            return client
+        import llm_provider
+        llm = llm_provider.get_llm('vision')
+        return llm if llm.available() else None
     except Exception:
         pass
 
-    # module3 不可用（极端情况）时退回环境变量
+    # 极端情况下退回环境变量 + 智谱官方地址
     api_key = (os.environ.get("ZHIPUAI_API_KEY") or "").strip()
     if not api_key or "在此填入" in api_key:
         return None
     try:
-        from zhipuai import ZhipuAI
-        return ZhipuAI(api_key=api_key)
+        import llm_provider
+        return llm_provider.LLM('vision', {
+            'provider': 'zhipu',
+            'base_url': llm_provider.ZHIPU_BASE,
+            'api_key': api_key,
+            'model': llm_provider.DEFAULT_VISION_MODEL,
+        })
     except Exception:
         return None
 
@@ -116,29 +120,21 @@ def _detect_watermark_region_glm4v(img_path):
     用GLM-4V-Flash检测水印文字位置
     返回水印区域的百分比坐标 [y1%, y2%, x1%, x2%] 或 None
     """
-    try:
-        from zhipuai import ZhipuAI
-    except:
-        return None, None
-
-    client = _get_zhipu_client()
-    if client is None:
-        print("  ⚠ 未配置智谱API Key，跳过水印检测")
+    llm = _get_vision_llm()
+    if llm is None:
+        print("  ⚠ 未配置视觉模型，跳过水印检测")
         return None, None
     img_b64 = _img_to_base64(img_path)
 
     try:
-        resp = client.chat.completions.create(
-            model="glm-4v-flash",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                    {"type": "text", "text": "图上有无半透明水印文字（店铺名/禁止盗图等）？有多块水印则分别回答，格式：y1,y2,x1,x2;y1,y2,x1,x2;... 无水印则回答'无水印'"}
-                ]
-            }],
+        answer = llm.ask_image(
+            img_b64,
+            "图上有无半透明水印文字（店铺名/禁止盗图等）？有多块水印则分别回答，"
+            "格式：y1,y2,x1,x2;y1,y2,x1,x2;... 无水印则回答'无水印'",
+            max_tokens=200,
+            temperature=0.1,
+            timeout=45,
         )
-        answer = resp.choices[0].message.content.strip()
 
         has_wm = _parse_watermark_answer(answer)
         if has_wm is False:
@@ -304,27 +300,24 @@ def process_single_image(img_path, output_path, reference_image=None):
 
 def check_watermark(img_path):
     """快速检测单张图片是否有水印（用于批量预筛）"""
-    client = _get_zhipu_client()
-    if client is None:
-        print("  ⚠ 未配置智谱API Key，跳过水印检测")
+    llm = _get_vision_llm()
+    if llm is None:
+        print("  ⚠ 未配置视觉模型，跳过水印检测")
         return None
     img_b64 = _img_to_base64(img_path)
 
     try:
-        resp = client.chat.completions.create(
-            model="glm-4v-flash",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                    {"type": "text", "text": "图上有无水印文字？只回答'有'或'无'"}
-                ]
-            }],
+        answer = llm.ask_image(
+            img_b64,
+            "图上有无水印文字？只回答'有'或'无'",
+            max_tokens=16,
+            temperature=0.1,
+            timeout=45,
+            retries=1,
         )
-        answer = resp.choices[0].message.content.strip()
         return _parse_watermark_answer(answer)
     except Exception as e:
-        print(f"    GLM-4V检测失败: {e}")
+        print(f"    水印检测失败: {e}")
         return None
 
 
