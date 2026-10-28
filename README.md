@@ -36,7 +36,7 @@ The goal is to make AI accessible and useful for everyday e-commerce users.
 | 模块 | 功能 | 效果 |
 |------|------|------|
 | 🔗 链接解析 | 粘贴闲鱼链接，自动提取标题/文案/价格/图片 | 结构化数据，比爬页面更准 |
-| 🧽 AI去水印 | GLM-4V多模态检测水印位置 → LaMa修复 → 羽化贴回 | 无痕迹，保账号安全 |
+| 🧽 AI去水印 | GLM-4V检测水印位置 → LaMa/OpenCV修复 → 羽化贴回 | 无痕迹，保账号安全 |
 | 📝 三版文案 | V1词典替换 / V2 AI微调 / V3 AI完整重写 | 3个账号3套文案，不撞车 |
 | 🔍 补充图搜索 | 百度识图+GLM-4V过滤水印 | 凑齐9张图不用愁 |
 | 📦 图片下载 | 并行下载商品原图 | 秒下 |
@@ -49,16 +49,30 @@ The goal is to make AI accessible and useful for everyday e-commerce users.
 
 ## 🚀 快速开始
 
-### 下载安装包（推荐，零配置）
+### 下载安装包（推荐）
 
 1. 👉 [前往下载](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest)
 2. 下载 `XianyuTool_Setup.exe`
 3. 双击安装，可选安装路径
-4. 桌面出现 `XianyuTool` 快捷方式，双击运行
-5. 首次运行弹出Chromium窗口 → 扫码登录闲鱼
-6. 以后自动复用登录，不用再扫码
+4. **配置你自己的 API Key**（首次必做，见下文）
+5. 桌面出现 `XianyuTool` 快捷方式，双击运行
+6. 首次运行弹出Chromium窗口 → 扫码登录闲鱼
+7. 以后自动复用登录，不用再扫码
 
-> **不需要安装Python、Chrome或任何依赖，装了就能用。**
+> **不需要安装Python、Chrome或任何依赖。**
+
+#### 配置 API Key
+
+安装包**不内置任何 Key**，请填写你自己的（GLM-4-Flash 与 GLM-4V-Flash 均免费）：
+[申请地址](https://open.bigmodel.cn/)
+
+新建文件 `%LOCALAPPDATA%\XianyuTool\api_config.json`，内容：
+
+```json
+{"zhipuai_key": "你的API Key"}
+```
+
+也支持环境变量 `ZHIPUAI_API_KEY`（优先级更高）。Key 只在本地读取，不会上传。
 
 ### 从源码运行
 
@@ -69,6 +83,7 @@ python -m playwright install chromium
 
 # 2. 配置API Key（免费申请：https://open.bigmodel.cn/）
 set ZHIPUAI_API_KEY=你的API Key
+#    或改用配置文件：程序目录下的 api_config.json，内容 {"zhipuai_key": "你的Key"}
 
 # 3. 运行
 python xianyu_gui.py
@@ -177,7 +192,7 @@ async def on_response(response):
 
 **做什么**：自动检测商品图片上的水印文字（店铺名、"禁止盗图"等），修复后看不到修过痕迹。
 
-**技术方案**：GLM-4V多模态AI定位 → LaMa图像修复 → 羽化贴回
+**技术方案**：GLM-4V多模态AI定位 → LaMa（缺失时降级 OpenCV）图像修复 → 羽化贴回
 
 **为什么这样设计**：
 
@@ -189,19 +204,31 @@ async def on_response(response):
 - 用智谱免费的多模态AI（GLM-4V-Flash）看图片，返回水印区域的百分比坐标
 - prompt设计：要求返回 `y1,y2,x1,x2` 格式的坐标，支持多块水印（分号分隔）
 - 返回 `无水印` / 坐标 / 不确定 三种状态
-- 快速预检优化：先只检测第1张图，无水印就全跳过（1秒完成），有水印才并行检测剩余图片（ThreadPoolExecutor max_workers=6）
+- 每张图独立检测（3并发，单张失败自动重试一次）。早期实现是"先测第1张，无水印就全跳过"，
+  但那会漏掉"第1张干净、第3张有水印"的情况，已改为逐张判断
+- 判定含水印与否用短语匹配而非单字匹配：`"没有水印"` 里也含"有"字，
+  用 `'有' in answer` 会把干净的图误判成有水印
 
-**步骤2：LaMa双轮修复**
+**步骤2：图像修复（LaMa 优先，OpenCV 兜底）**
 - LaMa是专用的图像修复模型（`simple-lama-inpainting`），擅长填充被mask的区域
 - 第1轮：mask覆盖所有水印区域（膨胀7×7核×2次迭代防止边缘残留），LaMa填充
 - 第2轮：缩小每个区域mask 10%边距，再修一次，修复第1轮的残留瑕疵
 - mask膨胀参数选择：7×7核+2次迭代是经验值，太小修不干净，太大会模糊周围内容
+- **降级路径**：LaMa 依赖 torch，打包体积会多几百 MB。如果环境里没有
+  `simple-lama-inpainting`，自动降级到 OpenCV `inpaint(TELEA)`——效果弱一些，
+  但零额外依赖，保证功能不会静默失效
+- `get_lama()` 用双重检查锁做单例，避免多线程同时加载多份模型（每份约200MB）
 
 **步骤3：羽化贴回**
-- LaMa修复的水印区域可能和原图有色彩/纹理差异，直接贴回去会有明显接缝
-- `_feather_blend` 函数：在修复区域和原图之间做12px的渐变过渡（边缘alpha从0到1线性变化）
-- 效果：修复区域的核心保持LaMa结果，边缘逐渐过渡到原图，看不出接缝
+- 修复结果和原图可能有色彩/纹理差异，直接贴回去会有明显接缝
+- `_feather_blend` 函数：在修复区域中心采用修复结果，向边缘 12px 内渐变回原图
+- 羽化半径会按区域尺寸自适应（`radius = min(12, 半高, 半宽)`），
+  否则区域较小时中心永远达不到满强度，小水印会残留
 - feather=12是经验值，太小有接缝，太大修复效果被稀释
+
+**保守策略**：GLM 判定"有水印"但没给出可用坐标时，**不做修复、直接保留原图**。
+早期实现会退回一个默认区域（图片中部 25% 高度整条），一旦误判就把商品主体抹掉，
+比不去水印更糟。
 
 **为什么不用OCR方案**：PaddleOCR能识别文字但无法精确定位半透明水印的边界（水印文字和商品图片融合在一起），GLM-4V作为多模态AI能理解"半透明文字覆盖在图片上"这种语义。
 
@@ -303,7 +330,7 @@ async def on_response(response):
 - 6个Tab：商品信息 / 原图 / 去水印 / 文案 / 补充图 / 视频
 - CSS动画：snowfall（飘雪）、twinkle（星星闪烁）、fadeInUp（卡片入场）、breathe（状态呼吸）
 - 检查更新功能：标题栏按钮，3种状态（绿点=最新/黄点呼吸=有新版/旋转=检查中），支持"跳过此版本"
-- 首次使用6步引导弹窗
+- 首次使用6步引导弹窗（看过一次后不再弹出，记录在 localStorage）
 
 ### 打包方案（PyInstaller + NSIS）
 
@@ -314,17 +341,23 @@ async def on_response(response):
 
 **PyInstaller配置**（XianyuTool.spec）：
 - `--windowed`：无控制台窗口
-- `--add-data`：打包 gui_embed.html / wallpaper.jpg / cacert.pem
+- `--add-data`：只打包 gui_embed.html / wallpaper.jpg / cacert.pem / xianyu_icon.ico
 - `--hidden-import`：playwright.async_api / anti_detect / watermark_cleaner / simple_lama_inpainting / certifi
 - `--collect-data certifi`：收集certifi证书数据
+- `excludes`：matplotlib / PyQt5 / PyQt6 / PySide2 / PySide6 / jedi / IPython / jupyter 系列 / Pythonwin
+  （均未使用，排除后体积从 378MB 降到 268MB；注意**不能**排除 tkinter，保存文件的对话框依赖它）
+- `upx=False`：UPX 压缩过的 PyInstaller 产物在国内杀软里误报率很高，用户下载即被隔离
+- **不打包 api_config.json 和任何 .py 源码**：前者会泄露开发者自己的 Key，
+  后者 PyInstaller 已编译进 pyz，多放一份只是把源码明文暴露给最终用户
 
 **NSIS安装包**（installer.nsi）：
-- 全ASCII脚本（中文编码会导致NSIS编译失败）
+- 全ASCII脚本（含中文会 `Bad text encoding` 编译失败）
 - `MUI_PAGE_DIRECTORY`：支持自定义安装路径
 - `RequestExecutionLevel User`：免UAC，默认装到 `%LOCALAPPDATA%\XianyuTool`
-- 注册表 `HKCU\Software\XianyuTool` 记录安装路径+版本号
+- 注册表 `HKCU\Software\XianyuTool` 记录安装路径+版本号（单反斜杠，与读取端一致）
 - 自动创建桌面快捷方式 + 开始菜单
 - 三处卸载入口：安装目录/开始菜单/系统设置
+- 注意：`InstallDirRegKey` 的优先级高于命令行 `/D=` 参数，想换安装目录要先清掉注册表里的旧路径
 
 **SSL证书修复**：
 - 问题：PyInstaller打包后Python找不到系统CA证书，httpx请求GitHub API报 `CERTIFICATE_VERIFY_FAILED`
@@ -335,11 +368,13 @@ async def on_response(response):
 | 优化点 | 优化前 | 优化后 | 节省 |
 |--------|--------|--------|------|
 | 模块1：sleep改轮询 | sleep(8)+sleep(3) | 0.5s轮询最多30次 | ~20s |
-| 模块3a：去水印快速预检 | 每张都检测 | 先检测第1张，无水印全跳过 | ~20s |
-| 模块3a：GLM-4V并行检测 | 串行8张 | ThreadPoolExecutor 6线程 | ~18s |
+| 模块3a：GLM-4V并行检测 | 串行8张 | ThreadPoolExecutor 3线程 | ~18s |
 | 模块3b：V2/V3并行 | 串行调API | ThreadPoolExecutor 2线程 | ~10s |
 | 模块3b：文案与去水印并行 | 等去水印完再生成文案 | 后台线程同时跑 | ~25s |
 | 模块1：已登录跳过首页 | 每次访问首页检测Cookie | 标记文件存在直接访问商品页 | ~3s |
+
+> 注：早期版本有一个"先测第1张图，无水印则全套跳过"的预检优化，省约20秒，
+> 但会漏掉"第1张干净、后面某张有水印"的情况，现已移除，改为逐张判断。
 | **总计** | **~150s** | **~60s** | **~90s** |
 
 ---
@@ -386,8 +421,16 @@ async def on_response(response):
 </details>
 
 <details>
+<summary><b>提示"智谱API Key未配置"怎么办？</b></summary>
+安装包不内置 Key。新建文件 <code>%LOCALAPPDATA%\XianyuTool\api_config.json</code>，
+内容为 <code>{"zhipuai_key": "你的Key"}</code>，保存后重新打开程序即可，无需重装。
+</details>
+
+<details>
 <summary><b>去水印效果怎么样？</b></summary>
-GLM-4V多模态AI定位水印区域 → LaMa图像修复算法填补 → 12px羽化贴回保证边缘过渡自然。无水印图片自动跳过（1秒完成）。
+GLM-4V 定位水印区域 → 图像修复算法填补 → 边缘羽化过渡。每张图独立检测，
+无水印的直接原样保留。环境里没有 LaMa 模型时会自动降级到 OpenCV 修复，效果弱一些但不会失效。
+如果 AI 只判断出"有水印"却给不出具体位置，程序会保留原图而不是乱抹一块。
 </details>
 
 <details>
