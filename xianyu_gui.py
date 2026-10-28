@@ -62,6 +62,10 @@ class Api:
         self.window = window_ref
         self._last_result = None  # 缓存上次结果供刷新用
         self._update_info = None  # 缓存更新信息
+        # 运行互斥：run_tool 的 join 超时后后台线程仍在操作浏览器，
+        # 此时若用户再点"开始"，会启动第二个 Chromium 抢同一个 user_data_dir
+        self._run_lock = threading.Lock()
+        self._running = False
 
     def _get_local_version(self):
         """读取本地版本号：优先注册表，源码运行默认1.0"""
@@ -174,6 +178,14 @@ class Api:
             return {'success': False, 'error': str(e)}
 
     def run_tool(self, url, search_max=15):
+        # 同一时间只允许一个采集任务，避免超时后前后台两个 Chromium 抢用户数据目录
+        with self._run_lock:
+            if self._running:
+                return {"success": False,
+                        "error": "已有任务正在执行，请等当前任务完成后再试"}
+            self._running = True
+
+        in_flight = False
         try:
             from xianyu_tool import run
             result_holder = {}
@@ -188,9 +200,18 @@ class Api:
                     result_holder['traceback'] = traceback.format_exc()
                 finally:
                     loop.close()
+                    # 线程真正结束后才放开运行锁（覆盖 join 超时的情况）
+                    self._running = False
             t = threading.Thread(target=run_in_thread, daemon=True)
             t.start()
+            in_flight = True
             t.join(timeout=600)
+            if t.is_alive():
+                # 后台仍在跑，保持 _running 为 True，由线程自身结束后复位
+                return {"success": False,
+                        "error": "处理超时（超过10分钟），后台仍在运行，请稍后查看输出目录"}
+            in_flight = False
+            self._running = False
             if 'error' in result_holder:
                 return {"success": False, "error": result_holder['error']}
             result = result_holder.get('result', {})
@@ -211,7 +232,13 @@ class Api:
                 "video_url": result.get("video_url", ""),
             }
         except Exception as e:
+            self._running = False
             return {"success": False, "error": str(e)}
+        finally:
+            # 线程没有真正跑起来（启动失败前就已退出）时才在这里复位；
+            # 若 in_flight 为 True 说明跑了但超时，锁要留到线程结束
+            if not in_flight:
+                self._running = False
 
     def get_images(self, output_dir, subfolder):
         dir_path = os.path.join(output_dir, subfolder)
