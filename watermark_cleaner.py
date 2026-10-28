@@ -159,9 +159,12 @@ def _detect_watermark_region_glm4v(img_path):
         if regions:
             return True, regions  # 返回多区域列表
 
-        # 判断为有水印但没给出合法坐标，用默认区域
+        # 判断为有水印但没给出合法坐标：
+        # 原实现会退回默认区域 (30,55,5,92)，即把图片中部整条 25% 高度抹掉重绘，
+        # 一旦 GLM 误判就直接毁掉商品主体。宁可不处理，也不乱抹。
         if has_wm is True:
-            return True, [(30, 55, 5, 92)]  # 默认水印区域
+            print("    ⚠ 判定有水印但未给出可用坐标，跳过修复以保护画面")
+            return None, None
 
         return None, None  # 不确定
     except Exception as e:
