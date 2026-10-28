@@ -8,12 +8,12 @@ InstallDirRegKey HKCU "Software\XianyuTool" "InstallDir"
 RequestExecutionLevel User
 ShowInstDetails show
 
-VIProductVersion "1.3.6.0"
+VIProductVersion "1.3.7.0"
 VIAddVersionKey /LANG=2052 "ProductName" "XianyuTool"
 VIAddVersionKey /LANG=2052 "CompanyName" "Qiu-Difeng"
 VIAddVersionKey /LANG=2052 "FileDescription" "XianyuTool Setup"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "MIT License"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.3.6.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.3.7.0"
 
 !define MUI_ICON "xianyu_icon.ico"
 !define MUI_UNICON "xianyu_icon.ico"
@@ -49,7 +49,7 @@ Section "Main" SecMain
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayName" "XianyuTool"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "UninstallString" '"$INSTDIR\uninstall.exe"'
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayIcon" '"$INSTDIR\XianyuTool.exe"'
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.3.6"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.3.7"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "Publisher" "Qiu-Difeng"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "InstallLocation" "$INSTDIR"
     
@@ -76,11 +76,12 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInstSuccess
-    ; 单反斜杠：与第 48 行 InstallDir 的写法保持一致。
-    ; NSIS 字符串不做转义，"Software\\XianyuTool" 会原样写成双反斜杠，
-    ; 而程序侧 _get_local_version() 读的是 Software\XianyuTool\Version，
-    ; 路径不一致会导致版本号永远读不到（每次启动都提示有新版本）。
-    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.6"
+    ; Single backslash, consistent with the InstallDir write above.
+    ; NSIS does not escape backslashes, so "Software\\XianyuTool" would be
+    ; stored with a double backslash while the app reads
+    ; Software\XianyuTool\Version and would never find it, making the
+    ; update check report a new version on every launch.
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.3.7"
 FunctionEnd
 
 
