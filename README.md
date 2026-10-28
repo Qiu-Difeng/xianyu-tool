@@ -54,25 +54,21 @@ The goal is to make AI accessible and useful for everyday e-commerce users.
 1. 👉 [前往下载](https://github.com/Qiu-Difeng/xianyu-tool/releases/latest)
 2. 下载 `XianyuTool_Setup.exe`
 3. 双击安装，可选安装路径
-4. **配置你自己的 API Key**（首次必做，见下文）
-5. 桌面出现 `XianyuTool` 快捷方式，双击运行
-6. 首次运行弹出Chromium窗口 → 扫码登录闲鱼
+4. 桌面出现 `XianyuTool` 快捷方式，双击运行
+5. **首次启动会弹出「配置 API Key」窗口**，粘贴你的 Key 点「保存并验证」即可
+6. 首次运行弹出浏览器窗口 → 扫码登录闲鱼
 7. 以后自动复用登录，不用再扫码
 
 > **不需要安装Python、Chrome或任何依赖。**
 
-#### 配置 API Key
+#### 关于 API Key
 
-安装包**不内置任何 Key**，请填写你自己的（GLM-4-Flash 与 GLM-4V-Flash 均免费）：
+安装包**不内置任何 Key**，请用你自己的（GLM-4-Flash 与 GLM-4V-Flash 均免费）：
 [申请地址](https://open.bigmodel.cn/)
 
-新建文件 `%LOCALAPPDATA%\XianyuTool\api_config.json`，内容：
-
-```json
-{"zhipuai_key": "你的API Key"}
-```
-
-也支持环境变量 `ZHIPUAI_API_KEY`（优先级更高）。Key 只在本地读取，不会上传。
+程序首次启动会自动弹出配置窗口；之后想修改，点右上角的「Key 已配置」按钮即可。
+Key 存在 `%LOCALAPPDATA%\XianyuTool\api_config.json`，只在本机读取，不会上传。
+也支持环境变量 `ZHIPUAI_API_KEY`（优先级更高）。
 
 ### 从源码运行
 
@@ -82,8 +78,8 @@ pip install -r requirements.txt
 python -m playwright install chromium
 
 # 2. 配置API Key（免费申请：https://open.bigmodel.cn/）
+#    首次启动会弹窗引导填写；也可用环境变量：
 set ZHIPUAI_API_KEY=你的API Key
-#    或改用配置文件：程序目录下的 api_config.json，内容 {"zhipuai_key": "你的Key"}
 
 # 3. 运行
 python xianyu_gui.py
@@ -422,8 +418,8 @@ async def on_response(response):
 
 <details>
 <summary><b>提示"智谱API Key未配置"怎么办？</b></summary>
-安装包不内置 Key。新建文件 <code>%LOCALAPPDATA%\XianyuTool\api_config.json</code>，
-内容为 <code>{"zhipuai_key": "你的Key"}</code>，保存后重新打开程序即可，无需重装。
+首次启动会自动弹出配置窗口，把 Key 粘进去点「保存并验证」就行。
+如果误点了「稍后配置」，点右上角的「Key 未配置」按钮重新打开即可。
 </details>
 
 <details>
