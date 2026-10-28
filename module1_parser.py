@@ -618,7 +618,9 @@ async def parse_xianyu(url, debug=False):
     result["images"] = result["image_urls"]
 
     # === 结果汇总 ===
-    if result["title"] or result["image_urls"]:
+    # 判定必须要求有标题：标题是文案生成的输入，只有图片的结果
+    # 会让后续白跑一遍去水印 + 文案（空标题喂给 AI），不如在这里直接报错
+    if result["title"].strip():
         result["success"] = True
         print(f"\n  ✅ 解析成功！")
         print(f"  商品ID: {result['item_id']}")
@@ -627,6 +629,11 @@ async def parse_xianyu(url, debug=False):
         print(f"  卖家: {result['seller']}")
         print(f"  文案: {len(result['desc'])}字")
         print(f"  图片: {len(result['image_urls'])}张")
+        if not result["desc"].strip():
+            print(f"  ⚠ 未取到商品描述，文案将主要依据标题生成")
+    elif result["image_urls"]:
+        result["error"] = (f"只拿到 {len(result['image_urls'])} 张图片，未取到商品标题，无法生成文案。"
+                           "可能原因：登录态过期、商品已下架或页面结构变化，请重试")
     else:
         result["error"] = "未能提取商品信息。可能原因：1) 未登录闲鱼 2) 商品已下架 3) 页面加载超时"
 
