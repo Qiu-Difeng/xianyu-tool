@@ -363,16 +363,36 @@ class Api:
             return {"success": False, "error": "已取消"}
         
         # 复制文件
+        # 用户可能直接选中源目录本身，此时 shutil.copy2 会抛 SameFileError，
+        # 原实现没有 try，整个接口直接抛异常，前端 Promise 收不到任何结果
         import shutil
+        same_dir = os.path.normcase(os.path.abspath(src_dir)) == os.path.normcase(os.path.abspath(dst_dir))
         saved = 0
+        failed = 0
         for f in sorted(os.listdir(src_dir)):
-            if f.endswith(('.jpg', '.png', '.jpeg', '.webp', '.txt', '.json')):
+            if not f.endswith(('.jpg', '.png', '.jpeg', '.webp', '.txt', '.json')):
+                continue
+            try:
                 shutil.copy2(os.path.join(src_dir, f), os.path.join(dst_dir, f))
                 saved += 1
-        
+            except shutil.SameFileError:
+                pass  # 源与目标同一文件，无需复制
+            except Exception:
+                failed += 1
+
+        if same_dir:
+            return {"success": True, "saved": 0, "path": dst_dir,
+                    "message": "所选目录就是源目录，文件已在原处"}
+
         # 打开目标文件夹
         if sys.platform == 'win32':
-            os.startfile(dst_dir)
+            try:
+                os.startfile(dst_dir)
+            except Exception:
+                pass
+        if failed:
+            return {"success": saved > 0, "saved": saved, "path": dst_dir,
+                    "error": f"{failed} 个文件复制失败"}
         return {"success": True, "saved": saved, "path": dst_dir}
 
     def save_copies_to(self, output_dir):
@@ -392,15 +412,34 @@ class Api:
         if not dst_dir:
             return {"success": False, "error": "已取消"}
         
+        # 同样的 SameFileError 保护：用户可能选中源目录本身
         import shutil
+        same_dir = os.path.normcase(os.path.abspath(src_dir)) == os.path.normcase(os.path.abspath(dst_dir))
         saved = 0
+        failed = 0
         for f in sorted(os.listdir(src_dir)):
-            if f.endswith(('.txt', '.json')):
+            if not f.endswith(('.txt', '.json')):
+                continue
+            try:
                 shutil.copy2(os.path.join(src_dir, f), os.path.join(dst_dir, f))
                 saved += 1
-        
+            except shutil.SameFileError:
+                pass
+            except Exception:
+                failed += 1
+
+        if same_dir:
+            return {"success": True, "saved": 0, "path": dst_dir,
+                    "message": "所选目录就是源目录，文件已在原处"}
+
         if sys.platform == 'win32':
-            os.startfile(dst_dir)
+            try:
+                os.startfile(dst_dir)
+            except Exception:
+                pass
+        if failed:
+            return {"success": saved > 0, "saved": saved, "path": dst_dir,
+                    "error": f"{failed} 个文件复制失败"}
         return {"success": True, "saved": saved, "path": dst_dir}
 
     def submit_feedback(self, content, contact=""):
