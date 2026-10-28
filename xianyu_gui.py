@@ -169,6 +169,80 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    # ============ API Key 配置 ============
+    def get_key_status(self):
+        """返回 Key 配置状态，供界面判断是否需要在首次启动时引导填写"""
+        try:
+            from module3_copywriter import resolve_api_key
+            key, source = resolve_api_key()
+            if not key:
+                return {"configured": False, "source": "", "masked": ""}
+            masked = (key[:6] + "……" + key[-4:]) if len(key) > 12 else "已配置"
+            return {"configured": True, "source": source, "masked": masked}
+        except Exception as e:
+            return {"configured": False, "source": "", "masked": "", "error": str(e)}
+
+    def save_api_key(self, key):
+        """保存用户填写的 API Key，并立即生效（不用重启程序）"""
+        try:
+            key = (key or "").strip()
+            if not key:
+                return {"success": False, "error": "请填写 API Key"}
+            if '在此填入' in key:
+                return {"success": False, "error": "这是占位符，请填真实的 Key"}
+            if any(c.isspace() for c in key):
+                return {"success": False, "error": "Key 里不能有空格或换行，请重新复制"}
+            if len(key) < 20:
+                return {"success": False, "error": "Key 太短，可能没复制完整"}
+
+            import module3_copywriter as m3
+            cfg_dir = m3._user_config_dir()
+            os.makedirs(cfg_dir, exist_ok=True)
+            cfg_path = os.path.join(cfg_dir, 'api_config.json')
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                json.dump({'zhipuai_key': key}, f, ensure_ascii=False, indent=2)
+
+            # 立即重载客户端，避免用户还要重启一次
+            m3.CLIENT = None
+            m3.API_KEY, m3.API_KEY_SOURCE = m3.resolve_api_key()
+            client = m3.get_client()
+            if client is None:
+                return {"success": False, "error": "已写入文件但加载失败，请重启程序"}
+            return {"success": True, "path": cfg_path}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def test_api_key(self):
+        """用一次极小的请求验证 Key 是否真的可用"""
+        try:
+            import module3_copywriter as m3
+            client = m3.get_client()
+            if client is None:
+                return {"success": False, "error": "尚未配置 Key"}
+            resp = client.chat.completions.create(
+                model=m3.MODEL,
+                messages=[{"role": "user", "content": "只回复两个字：可用"}],
+                max_tokens=16,
+                temperature=0.1,
+                timeout=30,
+            )
+            reply = (resp.choices[0].message.content or "").strip()[:20]
+            return {"success": True, "reply": reply}
+        except Exception as e:
+            msg = str(e)
+            if '401' in msg or 'auth' in msg.lower() or 'key' in msg.lower():
+                return {"success": False, "error": "Key 无效或已过期，请检查"}
+            return {"success": False, "error": msg[:160]}
+
+    def open_url(self, url):
+        """用默认浏览器打开链接（去申请 Key）"""
+        try:
+            import webbrowser
+            webbrowser.open(url)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def run_tool(self, url, search_max=15):
         # 同一时间只允许一个采集任务，避免超时后前后台两个 Chromium 抢用户数据目录
         with self._run_lock:
