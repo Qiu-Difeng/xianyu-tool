@@ -7,6 +7,7 @@ import json
 import re
 import os
 import sys
+import time
 from zhipuai import ZhipuAI
 
 MODEL = "glm-4-flash"
@@ -252,7 +253,12 @@ V3_PROMPT = """你是闲鱼文案专家。请基于以下商品信息【完整�
 {desc}
 """
 
-def call_glm(prompt, max_tokens=1200, temperature=0.7):
+def call_glm(prompt, max_tokens=1200, temperature=0.7, timeout=60, retries=2):
+    """调用智谱对话接口
+
+    原实现既没有超时也没有重试：网络抖动或服务端偶发 5xx 会直接让
+    整个文案生成线程失败，用户只能重来一遍。这里补上 60 秒超时和最多 2 次重试。
+    """
     client = get_client()
     if client is None:
         raise RuntimeError(
@@ -261,13 +267,25 @@ def call_glm(prompt, max_tokens=1200, temperature=0.7):
         )
     # 智谱API要求temperature最多2位小数
     temperature = round(temperature, 2)
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    return resp.choices[0].message.content.strip()
+
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=timeout,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                delay = 2 * (attempt + 1)
+                print(f"  ⚠ GLM 调用失败（{type(e).__name__}: {str(e)[:60]}），{delay}秒后重试...")
+                time.sleep(delay)
+    raise RuntimeError(f"GLM 调用失败（已重试 {retries} 次）：{last_err}")
 
 def v2_ai_light_rewrite(title, desc, banned_str, temperature=0.7):
     prompt = V2_PROMPT.format(desc=desc)
