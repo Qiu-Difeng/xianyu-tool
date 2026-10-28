@@ -338,14 +338,17 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
 // === 首次使用引导 ===
 const GUIDE_KEY = 'xianyu_tool_guide_seen';
 
+// 原实现用内存变量 _guideSeen 记录，进程一重启就重置，导致每次打开都弹 6 步引导。
+// 同文件 skipVersion 已在用 localStorage，说明 pywebview 的 WebView2 支持本地存储。
+function guideSeenBefore() {
+  try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch (e) { return false; }
+}
+
 window.addEventListener('pywebviewready', () => {
-  // 检查是否首次使用（localStorage在pywebview中可能不可用，用变量替代）
-  if (!_guideSeen) {
+  if (!guideSeenBefore()) {
     setTimeout(() => showGuide(), 800);
   }
 });
-
-let _guideSeen = false;
 
 function showGuide() {
   const overlay = document.createElement('div');
@@ -392,8 +395,9 @@ function showGuide() {
   window.guideNext = () => { if (currentStep < steps.length - 1) { currentStep++; renderStep(); } };
   window.guidePrev = () => { if (currentStep > 0) { currentStep--; renderStep(); } };
   window.closeGuide = () => { 
-    document.getElementById('guideOverlay').remove();
-    _guideSeen = true;
+    const ov = document.getElementById('guideOverlay');
+    if (ov) ov.remove();
+    try { localStorage.setItem(GUIDE_KEY, '1'); } catch (e) {}
   };
   
   renderStep();
