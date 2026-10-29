@@ -36,7 +36,7 @@ def get_random_ua():
 class RateLimiter:
     """请求频率控制器"""
     
-    def __init__(self, min_interval=2.0, max_interval=5.0, daily_limit=50):
+    def __init__(self, min_interval=1.5, max_interval=3.0, daily_limit=50):
         self.min_interval = min_interval  # 最小间隔（秒）
         self.max_interval = max_interval  # 最大间隔（秒）
         self.daily_limit = daily_limit    # 每日最大请求数
@@ -141,15 +141,17 @@ async def human_like_scroll(page):
     """模拟人类滚动行为"""
     import asyncio
     
-    # 先等一下
-    await asyncio.sleep(random.uniform(1, 2))
-    
+    # 先等一下（实测这组动作原本平均耗时 9 秒，占单条处理时间的 1/4。
+    # 反检测的关键是"有随机滚动行为"，而不是"滚得久"，
+    # 因此保留动作与随机性，只压缩每次间隔。）
+    await asyncio.sleep(random.uniform(0.3, 0.7))
+
     # 分段滚动
-    scroll_steps = random.randint(3, 6)
+    scroll_steps = random.randint(2, 3)
     for i in range(scroll_steps):
         scroll_amount = random.randint(200, 600)
         await page.evaluate(f"window.scrollBy(0, {scroll_amount})")
-        await asyncio.sleep(random.uniform(0.5, 1.5))
+        await asyncio.sleep(random.uniform(0.25, 0.6))
     
     # 偶尔往回滚一点
     if random.random() < 0.3:
@@ -161,12 +163,12 @@ async def random_mouse_move(page):
     """随机移动鼠标（反检测）"""
     import asyncio
     
-    for _ in range(random.randint(2, 5)):
+    for _ in range(random.randint(1, 2)):
         x = random.randint(100, 800)
         y = random.randint(100, 600)
         try:
             await page.mouse.move(x, y)
-            await asyncio.sleep(random.uniform(0.2, 0.8))
+            await asyncio.sleep(random.uniform(0.15, 0.35))
         except:
             pass
 

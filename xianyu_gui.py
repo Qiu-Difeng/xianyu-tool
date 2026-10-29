@@ -209,6 +209,9 @@ class Api:
                 loop = asyncio.new_event_loop()
                 try:
                     asyncio.set_event_loop(loop)
+                    # 不等文案：实测 V2/V3 单次调用可能超过 100 秒（免费模型排队），
+                    # 等它会把单条从 22 秒拖到 140 秒。文案交给后台线程，
+                    # 并发数由 xianyu_tool 的信号量限制，界面可稍后刷新查看。
                     return loop.run_until_complete(_run(url, search_max=max_imgs))
                 finally:
                     try:

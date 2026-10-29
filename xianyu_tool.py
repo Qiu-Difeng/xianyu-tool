@@ -22,6 +22,7 @@
 """
 import asyncio
 import json
+import threading
 import os
 import sys
 import time
@@ -388,8 +389,14 @@ def save_single_copy(title, text, version, output_dir):
 _copy_thread = None
 _copy_result = {}
 
+# 文案是后台异步生成的（不阻塞主流程）。批量队列会连续发起多条任务，
+# 若不限制并发，10 条下来就是 10 个线程同时打同一个模型接口，
+# 免费额度极易被限流，反而让文案大面积失败。
+# 这里限死同时最多 2 条在生成，其余排队等待。
+_COPY_SEMAPHORE = threading.Semaphore(2)
 
-async def _run_impl(url, search_max, stage):
+
+async def _run_impl(url, search_max, stage, wait_copies=False):
     """一键全流程（实现体，由 run 包装器负责异常兜底）
     stage: 可变字典，用于向包装器汇报当前所处阶段
     """
@@ -455,6 +462,8 @@ async def _run_impl(url, search_max, stage):
     copy_result = {}
     def _run_copywriting():
         _t0 = time.time()
+        # 限制并发：超出 2 条的文案任务在此排队
+        _COPY_SEMAPHORE.acquire()
         try:
             data = generate_copywriting(parsed["title"], parsed["desc"])
             copy_result['data'] = data
@@ -486,7 +495,9 @@ async def _run_impl(url, search_max, stage):
         except Exception as e:
             copy_result['error'] = str(e)
             print(f"  ✗ 文案生成失败: {e}")
-        copy_result['elapsed'] = round(time.time() - _t0, 1)
+        finally:
+            copy_result['elapsed'] = round(time.time() - _t0, 1)
+            _COPY_SEMAPHORE.release()
     copy_thread = threading.Thread(target=_run_copywriting, daemon=True)
     copy_thread.start()
     print(f"  ✅ V1/V2/V3后台生成中...")
@@ -528,6 +539,24 @@ async def _run_impl(url, search_max, stage):
     # 补充图太慢，改为用户单独点击触发
     timings['模块5_补充图'] = 0
     
+    # 队列模式（wait_copies=True）下必须等文案跑完再返回。
+    # 否则批量连续处理时，每条都会留下一个仍在调 AI 的后台线程，
+    # 10 条下来就是 10 个并发请求同时打同一个模型接口，极易触发限流，
+    # 结果是大面积文案生成失败。
+    if wait_copies and copy_thread is not None:
+        print(f"  队列模式：等待文案生成完成（最多 120 秒）...")
+        copy_thread.join(timeout=120)
+        if copy_thread.is_alive():
+            print(f"  ⚠ 文案生成超时，本条结果不含文案")
+            timings['模块3b_文案'] = '超时'
+        else:
+            ce = copy_result.get('elapsed', 0)
+            timings['模块3b_文案'] = ce
+            if copy_result.get('error'):
+                print(f"  ⚠ 文案生成失败: {copy_result['error']}")
+            else:
+                print(f"  ✓ 文案已生成（{ce}秒）")
+
     # === 汇总 ===
     elapsed = time.time() - start_time
     
@@ -590,8 +619,11 @@ if __name__ == "__main__":
         print(f"\n❌ 运行出错: {e}")
         sys.exit(1)
 
-async def run(url, search_max=15):
+async def run(url, search_max=15, wait_copies=False):
     """主流程入口：统一捕获异常并标注失败阶段。
+
+    wait_copies=True 时会等文案生成完毕再返回（批量队列用），
+    默认 False 保持界面异步展示文案的行为。
 
     原先异常只在 GUI 层被转成 str(e)，用户看到的是裸异常文本，
     分不清是解析失败还是下载失败，也没有堆栈可查。
@@ -600,7 +632,7 @@ async def run(url, search_max=15):
     """
     stage = {'name': '初始化'}
     try:
-        return await _run_impl(url, search_max, stage)
+        return await _run_impl(url, search_max, stage, wait_copies)
     except Exception as exc:
         import traceback as _tb
         print('\n[异常] 阶段「%s」失败：%s' % (stage['name'], exc))
