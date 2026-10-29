@@ -375,6 +375,12 @@ class Api:
         """返回日志路径与最近内容，方便用户把现场发回来排查"""
         try:
             import app_logger
+            # install 是幂等的：正常启动时已在 __main__ 装过，
+            # 这里兜底，避免未走标准启动路径时接口报「无日志」
+            try:
+                app_logger.install()
+            except Exception:
+                pass
             path = app_logger.current_path()
             if not path or not os.path.exists(path):
                 return {'success': False, 'error': '本次运行还没有产生日志'}

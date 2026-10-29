@@ -620,7 +620,7 @@ body {
   <div class="tab-pane" id="pane5"></div>
 </div>
 
-<div class="footer">闲鱼辅助工具 v1.4.0 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" onclick="showFeedback(); return false;" style="color:var(--accent2);text-decoration:none;">问题反馈</a> · <a href="#" onclick="checkUpdate(true); return false;" style="color:var(--accent2);text-decoration:none;">检查更新</a></div>
+<div class="footer">闲鱼辅助工具 v1.4.0 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" onclick="showLogModal(); return false;" style="color:var(--accent2);text-decoration:none;">运行日志</a> · <a href="#" onclick="showFeedback(); return false;" style="color:var(--accent2);text-decoration:none;">问题反馈</a> · <a href="#" onclick="checkUpdate(true); return false;" style="color:var(--accent2);text-decoration:none;">检查更新</a></div>
 
 <script>
 // HTML 转义：所有来自后端/第三方（闲鱼标题、卖家昵称、商品描述、异常信息）
@@ -1176,6 +1176,78 @@ window.addEventListener('pywebviewready', () => {
   });
 });
 
+// ===== 运行日志查看 =====
+// 后端 get_log_info 返回日志路径与末尾内容；
+// 这里做成弹窗，方便用户直接复制发给开发者，或打开文件夹取完整文件。
+window._logText = window._logText || '';
+window._logDir = window._logDir || '';
+
+function showLogModal() {
+  Modal.open({
+    id: 'logOverlay',
+    icon: 'i-info',
+    title: '运行日志',
+    desc: '遇到问题时把日志发给开发者，能快速定位原因',
+    wide: true,
+    body:
+      '<div id="logBody" style="background:var(--field-bg);border-radius:10px;padding:14px;max-height:340px;overflow:auto;text-align:left;">' +
+        '<pre id="logPre" style="white-space:pre-wrap;word-break:break-all;color:var(--text-dim);font-size:11px;line-height:1.6;margin:0;font-family:ui-monospace,Consolas,monospace;">读取中…</pre>' +
+      '</div>',
+    actions: [
+      { text: '打开日志文件夹', onclick: openLogFolder },
+      { text: '<svg class="ico"><use href="#i-copy"/></svg> 复制日志', primary: true, onclick: copyLog },
+      { text: '关闭', onclick: () => Modal.close('logOverlay') },
+    ],
+    footer: '日志只保存在本机，不会上传',
+  });
+
+  pywebview.api.get_log_info(300).then(function (info) {
+    const pre = document.getElementById('logPre');
+    if (!pre) return;
+    if (!info || !info.success) {
+      pre.textContent = (info && info.error) || '暂无日志内容';
+      return;
+    }
+    window._logText = info.content || '';
+    window._logDir = info.dir || '';
+    pre.textContent = window._logText || '(本次运行还没有输出)';
+    const box = document.getElementById('logBody');
+    if (box) box.scrollTop = box.scrollHeight;
+  }).catch(function (e) {
+    const pre = document.getElementById('logPre');
+    if (pre) pre.textContent = '读取日志失败：' + e;
+  });
+}
+
+function copyLog() {
+  if (!window._logText) {
+    addLog('日志内容为空，暂无可复制的内容', 'warn');
+    return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(window._logText).then(function () {
+      addLog('日志已复制到剪贴板，可直接粘贴发送', 'success');
+    }).catch(function () {
+      addLog('复制失败，可点「打开日志文件夹」手动取文件', 'error');
+    });
+  } else {
+    addLog('当前环境不支持剪贴板，请打开日志文件夹手动复制', 'warn');
+  }
+}
+
+function openLogFolder() {
+  if (!window._logDir) {
+    addLog('还没产生日志文件', 'warn');
+    return;
+  }
+  pywebview.api.open_file(window._logDir).then(function (r) {
+    if (!r || !r.success) addLog('打开文件夹失败：' + ((r && r.error) || '未知'), 'error');
+  }).catch(function (e) {
+    addLog('打开文件夹异常：' + e, 'error');
+  });
+}
+
+// === 首次使用引导 ===
 function showGuide() {
   // 引导需要按步骤重绘，不适合静态的 Modal 工厂，
   // 因此复用同一套 .modal-* 样式类，去掉内联样式。
