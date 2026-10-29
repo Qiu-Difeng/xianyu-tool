@@ -370,6 +370,26 @@ class Api:
         except Exception:
             return {'theme': 'dark'}
 
+    # ============ 日志 ============
+    def get_log_info(self, tail=200):
+        """返回日志路径与最近内容，方便用户把现场发回来排查"""
+        try:
+            import app_logger
+            path = app_logger.current_path()
+            if not path or not os.path.exists(path):
+                return {'success': False, 'error': '本次运行还没有产生日志'}
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.readlines()
+            return {
+                'success': True,
+                'path': path,
+                'dir': os.path.dirname(path),
+                'size': os.path.getsize(path),
+                'content': ''.join(lines[-max(1, int(tail)):]),
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def run_tool(self, url, search_max=15):
         # 同一时间只允许一个采集任务，避免超时后前后台两个 Chromium 抢用户数据目录
         with self._run_lock:
@@ -755,6 +775,12 @@ def build_html():
 
 
 if __name__ == "__main__":
+    # 在最早阶段接管 stdout/stderr：打包成 windowed 后 print 原本会被吞掉，
+    # 装上 tee 之后所有输出同时落到 %LOCALAPPDATA%\XianyuTool\logs\ 下。
+    import app_logger
+    app_logger.install()
+    app_logger.note('XianyuTool 启动')
+
     api = Api(window_ref)
     html_content = build_html()
     window = webview.create_window(
