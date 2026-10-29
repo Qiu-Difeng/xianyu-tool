@@ -101,6 +101,19 @@ class TaskQueue:
             self._stop = True
         return True
 
+    def retry_failed(self):
+        """把失败的条目重置为待处理，返回重置数量"""
+        n = 0
+        with self._lock:
+            for t in self._tasks:
+                if t['status'] == FAILED:
+                    t['status'] = PENDING
+                    t['stage'] = ''
+                    t['error'] = ''
+                    t['elapsed'] = 0
+                    n += 1
+        return n
+
     def clear_finished(self):
         """清掉已完成/失败的条目，保留待处理与进行中的"""
         with self._lock:

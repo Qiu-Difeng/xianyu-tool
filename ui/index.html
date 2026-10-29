@@ -206,6 +206,7 @@
         <button class="modal-btn primary" id="queueStartBtn" onclick="queueStart()"><svg class="ico"><use href="#i-play"/></svg> 开始处理</button>
         <button class="modal-btn" id="queueStopBtn" onclick="queueStop()"><svg class="ico"><use href="#i-x"/></svg> 停止</button>
         <button class="modal-btn" onclick="queueClear()"><svg class="ico"><use href="#i-check"/></svg> 清除已完成</button>
+        <button class="modal-btn" id="queueRetryBtn" onclick="queueRetryFailed()"><svg class="ico"><use href="#i-refresh"/></svg> 重试失败</button>
       </div>
     </div>
     <div id="queueSummary" class="queue-summary">队列为空，先粘贴链接再点「加入队列」</div>

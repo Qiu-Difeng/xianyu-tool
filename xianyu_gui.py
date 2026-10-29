@@ -363,6 +363,18 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    def queue_retry_failed(self):
+        """把批队列里失败的条目放回待处理"""
+        try:
+            if self._queue.snapshot().get('active'):
+                return {'success': False, 'error': '队列正在运行，请先停止再重试'}
+            n = self._queue.retry_failed()
+            if n == 0:
+                return {'success': False, 'error': '没有失败的条目'}
+            return {'success': True, 'count': n}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def queue_clear(self):
         try:
             self._queue.clear_finished()

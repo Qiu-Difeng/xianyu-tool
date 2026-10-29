@@ -127,3 +127,14 @@ function queueOpen(dir) {
   }).catch(function () {});
 }
 
+
+function queueRetryFailed() {
+  pywebview.api.queue_retry_failed().then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '重试失败', 'warn');
+      return;
+    }
+    addLog('已把 ' + r.count + ' 条失败任务放回队列，点「开始处理」继续', 'success');
+    refreshQueue();
+  }).catch(function (e) { addLog('重试异常：' + e, 'error'); });
+}
