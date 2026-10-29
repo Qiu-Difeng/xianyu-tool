@@ -59,6 +59,10 @@ class Api:
         # 此时若用户再点"开始"，会启动第二个 Chromium 抢同一个 user_data_dir
         self._run_lock = threading.Lock()
         self._running = False
+        # 批量队列：与单条任务共用同一个浏览器用户目录，必须互斥
+        from task_queue import TaskQueue
+        self._queue = TaskQueue()
+        self._queue_search_max = 15
 
     def _get_local_version(self):
         """读取本地版本号：优先注册表；源码运行时回落到当前开发版本"""
@@ -167,6 +171,95 @@ class Api:
             if sys.platform == 'win32':
                 os.startfile(path)
             return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    # ============ 批量队列 ============
+    def queue_add(self, text):
+        """把多行文本里的链接加入队列"""
+        try:
+            raw = (text or '').replace('\r', '\n')
+            lines = [ln.strip() for ln in raw.split('\n') if ln.strip()]
+            urls = [u for u in lines if 'http' in u.lower()]
+            if not urls:
+                return {'success': False, 'error': '没有识别到链接，请每行粘贴一条'}
+            added = self._queue.add(urls)
+            snap = self._queue.snapshot()
+            # skipped 按用户实际粘贴的行数算，包含「非链接文字」与「重复链接」，
+            # 这样界面能解释「我粘了 4 行为什么只进 2 条」
+            return {'success': True, 'added': added, 'total': snap['total'],
+                    'skipped': len(lines) - added}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_start(self, search_max=15):
+        """启动队列（串行执行）"""
+        try:
+            if self._running:
+                return {'success': False, 'error': '当前有单条任务在执行，请等它结束'}
+            snap = self._queue.snapshot()
+            if snap['active']:
+                return {'success': False, 'error': '队列已在运行中'}
+
+            from xianyu_tool import run as _run
+            max_imgs = int(search_max or 15)
+
+            def runner(url):
+                # 队列跑在独立线程，需要自己的事件循环
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    return loop.run_until_complete(_run(url, search_max=max_imgs))
+                finally:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
+
+            if not self._queue.start(runner):
+                return {'success': False, 'error': '队列为空，或已全部处理完'}
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_stop(self):
+        try:
+            self._queue.stop()
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_status(self):
+        try:
+            snap = self._queue.snapshot()
+            snap['success'] = True
+            # 让界面知道单条任务是否占用着浏览器
+            snap['single_running'] = bool(self._running)
+            return snap
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_clear(self):
+        try:
+            self._queue.clear_finished()
+            return {'success': True, 'total': self._queue.snapshot()['total']}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_reset(self):
+        try:
+            ok = self._queue.reset()
+            return {'success': ok,
+                    'error': '' if ok else '队列运行中，请先停止'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def queue_open_output(self, output_dir):
+        """打开某个任务的结果目录"""
+        try:
+            if not output_dir or not os.path.isdir(output_dir):
+                return {'success': False, 'error': '结果目录不存在'}
+            return self.open_file(output_dir)
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
@@ -462,6 +555,10 @@ class Api:
             if self._running:
                 return {"success": False,
                         "error": "已有任务正在执行，请等当前任务完成后再试"}
+            # 队列与单条任务共用同一个浏览器用户目录，不能并行
+            if self._queue.snapshot().get('active'):
+                return {"success": False,
+                        "error": "批量队列正在运行，请先停止队列再单条处理"}
             self._running = True
 
         in_flight = False

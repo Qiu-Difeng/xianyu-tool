@@ -169,6 +169,82 @@
 .log-line.accent::before { background: var(--accent2); }
 
 /* ============================================================
+   批量队列
+   ============================================================ */
+.queue-box { margin-bottom: 16px; }
+.queue-textarea {
+  width: 100%;
+  height: 96px;
+  resize: vertical;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.queue-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.queue-actions .modal-btn,
+.queue-actions .modal-btn.primary { flex: 0 0 auto; padding: 9px 18px; font-size: 13px; }
+.queue-summary {
+  background: var(--panel-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.queue-progress { height: 6px; background: var(--divider); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.queue-progress-bar { height: 100%; width: 0; background: var(--accent-grad); border-radius: 3px; transition: width 0.4s ease; }
+.queue-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+.queue-stats .qs-ok { color: var(--success); }
+.queue-stats .qs-fail { color: var(--error); }
+.queue-stats .qs-run { color: var(--accent2); }
+.queue-list { display: flex; flex-direction: column; gap: 8px; }
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  font-size: 12px;
+  animation: fadeInUp 0.3s ease;
+}
+.queue-item .qi-ico { width: 18px; flex-shrink: 0; text-align: center; color: var(--text-faint); }
+.queue-item.running .qi-ico { color: var(--accent2); }
+.queue-item.done .qi-ico { color: var(--success); }
+.queue-item.failed .qi-ico { color: var(--error); }
+.queue-item .qi-main { flex: 1; min-width: 0; }
+.queue-item .qi-title {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.queue-item .qi-sub {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.queue-item.failed .qi-sub { color: var(--error); }
+.queue-item .qi-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+.queue-item .qi-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.spin-ico { display: inline-block; animation: spin 0.9s linear infinite; }
+
+/* ============================================================
    弹窗组件
    原先 7 个弹窗各自在 JS 里拼一整套内联样式（约 400 行重复代码），
    改样式要翻 JS 字符串，且深色/浅色两套主题无法统一维护。
@@ -604,6 +680,7 @@ body {
   <button class="tab-btn" onclick="switchTab(3)"><svg class="ico"><use href="#i-pen"/></svg> 文案</button>
   <button class="tab-btn" onclick="switchTab(4)"><svg class="ico"><use href="#i-search"/></svg> 补充图</button>
   <button class="tab-btn" onclick="switchTab(5)"><svg class="ico"><use href="#i-video"/></svg> 视频</button>
+  <button class="tab-btn" onclick="switchTab(6)"><svg class="ico"><use href="#i-grid"/></svg> 批量</button>
 </div>
 
 <div class="tab-content">
@@ -618,6 +695,21 @@ body {
   <div class="tab-pane" id="pane3"></div>
   <div class="tab-pane" id="pane4"></div>
   <div class="tab-pane" id="pane5"></div>
+
+  <div class="tab-pane" id="pane6">
+    <div class="queue-box">
+      <div class="modal-label">粘贴链接（每行一条，重复与无效行会自动跳过）</div>
+      <textarea id="queueText" class="modal-input queue-textarea" placeholder="https://m.tb.cn/h.xxxx&#10;https://m.tb.cn/h.yyyy"></textarea>
+      <div class="queue-actions">
+        <button class="modal-btn" onclick="queueAdd()"><svg class="ico"><use href="#i-link"/></svg> 加入队列</button>
+        <button class="modal-btn primary" id="queueStartBtn" onclick="queueStart()"><svg class="ico"><use href="#i-play"/></svg> 开始处理</button>
+        <button class="modal-btn" id="queueStopBtn" onclick="queueStop()"><svg class="ico"><use href="#i-x"/></svg> 停止</button>
+        <button class="modal-btn" onclick="queueClear()"><svg class="ico"><use href="#i-check"/></svg> 清除已完成</button>
+      </div>
+    </div>
+    <div id="queueSummary" class="queue-summary">队列为空，先粘贴链接再点「加入队列」</div>
+    <div id="queueList" class="queue-list"></div>
+  </div>
 </div>
 
 <div class="footer">闲鱼辅助工具 v1.4.1 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" onclick="showLogModal(); return false;" style="color:var(--accent2);text-decoration:none;">运行日志</a> · <a href="#" onclick="showFeedback(); return false;" style="color:var(--accent2);text-decoration:none;">问题反馈</a> · <a href="#" onclick="checkUpdate(true); return false;" style="color:var(--accent2);text-decoration:none;">检查更新</a></div>
@@ -1176,6 +1268,134 @@ window.addEventListener('pywebviewready', () => {
   });
 });
 
+// ===== 批量队列 =====
+// 串行执行，界面每 1.5 秒轮询一次状态；离开该 tab 时停止轮询省资源。
+let _queueTimer = null;
+
+function startQueuePolling() {
+  if (_queueTimer) return;
+  _queueTimer = setInterval(refreshQueue, 1500);
+}
+
+function stopQueuePolling() {
+  if (_queueTimer) { clearInterval(_queueTimer); _queueTimer = null; }
+}
+
+function queueAdd() {
+  const ta = document.getElementById('queueText');
+  const text = ta ? ta.value : '';
+  if (!text.trim()) { addLog('请先粘贴链接', 'warn'); return; }
+  pywebview.api.queue_add(text).then(function (r) {
+    if (!r || !r.success) { addLog((r && r.error) || '入队失败', 'error'); return; }
+    let msg = '已加入 ' + r.added + ' 条';
+    if (r.skipped) msg += '，跳过 ' + r.skipped + ' 条（重复或非链接）';
+    msg += '，队列共 ' + r.total + ' 条';
+    addLog(msg, 'success');
+    if (ta) ta.value = '';
+    refreshQueue();
+  }).catch(function (e) { addLog('入队异常：' + e, 'error'); });
+}
+
+function queueStart() {
+  const maxEl = document.getElementById('searchMax');
+  const maxImgs = maxEl ? (parseInt(maxEl.value, 10) || 15) : 15;
+  pywebview.api.queue_start(maxImgs).then(function (r) {
+    if (!r || !r.success) { addLog((r && r.error) || '启动失败', 'error'); return; }
+    addLog('批量处理已开始：串行执行，每条之间自动间隔几秒', 'accent');
+    startQueuePolling();
+  }).catch(function (e) { addLog('启动异常：' + e, 'error'); });
+}
+
+function queueStop() {
+  pywebview.api.queue_stop().then(function () {
+    addLog('已请求停止：当前这条跑完后不再开始新的', 'warn');
+  }).catch(function () {});
+}
+
+function queueClear() {
+  pywebview.api.queue_clear().then(function () { refreshQueue(); }).catch(function () {});
+}
+
+function refreshQueue() {
+  pywebview.api.queue_status().then(function (s) {
+    if (!s || !s.success) return;
+    renderQueue(s);
+    if (s.active) startQueuePolling();
+    else stopQueuePolling();
+  }).catch(function () {});
+}
+
+const QUEUE_ICON = {
+  pending: '#i-link',
+  running: '#i-loader',
+  done: '#i-check',
+  failed: '#i-x'
+};
+const QUEUE_LABEL = {
+  pending: '排队中',
+  running: '处理中',
+  done: '已完成',
+  failed: '失败'
+};
+
+function renderQueue(s) {
+  const sum = document.getElementById('queueSummary');
+  if (sum) {
+    if (!s.total) {
+      sum.textContent = '队列为空，先粘贴链接再点「加入队列」';
+    } else {
+      const finished = (s.done || 0) + (s.failed || 0);
+      const pct = Math.round(finished / s.total * 100);
+      let stats = '<span>共 ' + s.total + ' 条</span>';
+      stats += '<span>已处理 ' + finished + '/' + s.total + '</span>';
+      if (s.done) stats += '<span class="qs-ok">成功 ' + s.done + '</span>';
+      if (s.failed) stats += '<span class="qs-fail">失败 ' + s.failed + '</span>';
+      if (s.running) stats += '<span class="qs-run">进行中 ' + s.running + '</span>';
+      if (s.pending) stats += '<span>等待 ' + s.pending + '</span>';
+      if (s.single_running) stats += '<span class="qs-run">单条任务占用中</span>';
+      sum.innerHTML =
+        '<div class="queue-progress"><div class="queue-progress-bar" style="width:' + pct + '%"></div></div>' +
+        '<div class="queue-stats">' + stats + '</div>';
+    }
+  }
+
+  const list = document.getElementById('queueList');
+  if (!list) return;
+  if (!s.total) { list.innerHTML = ''; return; }
+
+  list.innerHTML = (s.tasks || []).map(function (t) {
+    const st = t.status || 'pending';
+    let sub;
+    if (st === 'done') {
+      sub = (t.title || '') + (t.elapsed ? ' · ' + t.elapsed + 's' : '');
+    } else if (st === 'failed') {
+      sub = (t.stage ? t.stage + '：' : '') + (t.error || '未知错误');
+    } else if (st === 'running') {
+      sub = t.stage || '处理中…';
+    } else {
+      sub = t.url;
+    }
+    const titleText = t.title || QUEUE_LABEL[st] || t.url || '';
+    const iconCls = st === 'running' ? ' spin-ico' : '';
+    const openBtn = (st === 'done' && t.output_dir)
+      ? '<button class="qi-btn" data-dir="' + escapeHtml(t.output_dir) + '" onclick="queueOpen(this.dataset.dir)">打开</button>'
+      : '';
+    return '<div class="queue-item ' + st + '">' +
+      '<span class="qi-ico"><svg class="ico' + iconCls + '"><use href="' + (QUEUE_ICON[st] || '#i-link') + '"/></svg></span>' +
+      '<div class="qi-main">' +
+        '<div class="qi-title">' + escapeHtml(titleText) + '</div>' +
+        '<div class="qi-sub">' + escapeHtml(sub) + '</div>' +
+      '</div>' + openBtn +
+    '</div>';
+  }).join('');
+}
+
+function queueOpen(dir) {
+  pywebview.api.queue_open_output(dir).then(function (r) {
+    if (!r || !r.success) addLog((r && r.error) || '打开目录失败', 'error');
+  }).catch(function () {});
+}
+
 // ===== 配置备份 / 恢复 =====
 // 换电脑或重装时不用重新配 Key 与模型：导出成一段 JSON，粘贴回去即可。
 function showConfigExport() {
@@ -1493,6 +1713,12 @@ let _copiesData = null;
 function switchTab(idx) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   document.querySelectorAll('.tab-pane').forEach((p, i) => p.classList.toggle('active', i === idx));
+  // 批量 tab：进入时立即刷新并在运行中开启轮询；离开时停掉，省资源
+  if (idx === 6) {
+    refreshQueue();
+  } else {
+    stopQueuePolling();
+  }
 }
 
 function addLog(msg, type) {
