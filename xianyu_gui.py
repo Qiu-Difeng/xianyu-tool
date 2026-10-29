@@ -60,14 +60,14 @@ class Api:
         self._running = False
 
     def _get_local_version(self):
-        """读取本地版本号：优先注册表，源码运行默认1.0"""
+        """读取本地版本号：优先注册表；源码运行时回落到当前开发版本"""
         try:
             import winreg
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\XianyuTool') as key:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.0'
+            return '1.4.0'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
