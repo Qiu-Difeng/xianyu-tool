@@ -16,7 +16,7 @@ UI = 'ui'
 OUT = 'gui_embed.html'
 
 # 注入顺序必须与拆分前一致：函数声明会提升，但顶层立即执行的代码有先后依赖
-INJECT_ORDER = ['style.css', 'base.js', 'llm.js', 'ui.js', 'queue.js', 'settings.js', 'dialogs.js', 'workflow.js']
+INJECT_ORDER = ['style.css', 'base.js', 'llm.js', 'ui.js', 'queue.js', 'settings.js', 'history.js', 'dialogs.js', 'workflow.js']
 
 
 def read(name):

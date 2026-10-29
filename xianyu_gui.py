@@ -174,6 +174,67 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    # ============ 历史记录 ============
+    def list_history(self, limit=50):
+        """扫描输出目录，列出处理过的商品（按时间倒序）"""
+        try:
+            from xianyu_tool import OUTPUT_ROOT
+            root = os.path.join(OUTPUT_ROOT, 'output')
+            if not os.path.isdir(root):
+                return {'success': True, 'items': [], 'total': 0}
+
+            items = []
+            for name in os.listdir(root):
+                d = os.path.join(root, name)
+                if not os.path.isdir(d):
+                    continue
+                rj = os.path.join(d, 'result.json')
+                if not os.path.exists(rj):
+                    continue
+                try:
+                    with open(rj, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except Exception:
+                    continue
+
+                copies = data.get('copies') or {}
+                items.append({
+                    'product_id': name,
+                    'title': data.get('title') or '(无标题)',
+                    'price': data.get('price') or '',
+                    'seller': data.get('seller') or '',
+                    'desc': data.get('original_desc') or '',
+                    'images': len(data.get('original_images') or []),
+                    'clean': len(data.get('clean_images') or []),
+                    'output_dir': d,
+                    'mtime': os.path.getmtime(rj),
+                    'mtime_text': time.strftime('%m-%d %H:%M', time.localtime(os.path.getmtime(rj))),
+                    'elapsed': data.get('elapsed_seconds') or 0,
+                    'has_copies': bool(copies.get('v1') or copies.get('v2') or copies.get('v3')),
+                })
+
+            items.sort(key=lambda x: x['mtime'], reverse=True)
+            total = len(items)
+            return {'success': True, 'items': items[:max(1, int(limit))], 'total': total}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def delete_history_item(self, output_dir):
+        """删除某条历史记录的结果目录"""
+        try:
+            from xianyu_tool import OUTPUT_ROOT
+            root = os.path.realpath(os.path.join(OUTPUT_ROOT, 'output'))
+            target = os.path.realpath(output_dir or '')
+            # 只允许删 output 下的子目录，避免误删任意路径
+            if not target.startswith(root + os.sep):
+                return {'success': False, 'error': '路径不在结果目录内，已拒绝'}
+            if not os.path.isdir(target):
+                return {'success': False, 'error': '目录不存在'}
+            shutil.rmtree(target, ignore_errors=True)
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     # ============ 批量队列 ============
     def queue_add(self, text):
         """把多行文本里的链接加入队列"""

@@ -546,3 +546,46 @@ body {
 .timing-val { color: var(--accent2); font-weight: 600; }
 .timing-bar { flex: 1; height: 4px; margin: 0 12px; background: rgba(255,255,255,0.06); border-radius: 2px; align-self: center; position: relative; }
 .timing-bar-fill { height: 100%; background: var(--accent-grad); border-radius: 2px; }
+
+/* ============================================================
+   历史记录
+   ============================================================ */
+.history-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  transition: border-color 0.2s ease;
+}
+.history-item:hover { border-color: var(--accent2); }
+.history-item .hi-main { flex: 1; min-width: 0; }
+.history-item .hi-title {
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item .hi-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item .hi-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+.history-item .hi-btn:hover { border-color: var(--accent2); color: var(--accent2); }
