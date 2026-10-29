@@ -389,9 +389,9 @@ _copy_thread = None
 _copy_result = {}
 
 
-async def run(url, search_max=15):
-    """一键全流程
-    search_max: 补充图搜索数量上限
+async def _run_impl(url, search_max, stage):
+    """一键全流程（实现体，由 run 包装器负责异常兜底）
+    stage: 可变字典，用于向包装器汇报当前所处阶段
     """
     start_time = time.time()
     timings = {}
@@ -408,6 +408,7 @@ async def run(url, search_max=15):
         shutil.rmtree(output_parent, ignore_errors=True)
     os.makedirs(output_parent, exist_ok=True)
     
+    stage['name'] = '模块1_解析'
     # === 模块1：解析链接 ===
     print(f"\n{'='*60}")
     print("模块1：解析闲鱼链接")
@@ -491,6 +492,7 @@ async def run(url, search_max=15):
     # 同时执行模块2：下载图片
     t0 = time.time()
     original_dir = os.path.join(output_root, "original")
+    stage['name'] = '模块2_下载图片'
     original_images = await download_product_images(
         parsed["images"], original_dir, 
         captured_images=parsed.get("captured_images")
@@ -504,6 +506,7 @@ async def run(url, search_max=15):
     # === 模块3a：去水印 ===
     t0 = time.time()
     clean_dir = os.path.join(output_root, "clean")
+    stage['name'] = '模块3a_去水印'
     clean_images = remove_watermarks(original_images, clean_dir)
     timings['模块3a_去水印'] = round(time.time() - t0, 1)
     
@@ -518,6 +521,7 @@ async def run(url, search_max=15):
     timings['模块3b_文案'] = 0  # 0表示仍在生成中
     print(f"  ✅ 文案后台生成中（不阻塞主流程）...")
     
+    stage['name'] = '模块5_补充图'
     # === 模块5：百度识图搜补充图（改为独立触发，不在主流程跑） ===
     # 补充图太慢，改为用户单独点击触发
     timings['模块5_补充图'] = 0
@@ -525,6 +529,7 @@ async def run(url, search_max=15):
     # === 汇总 ===
     elapsed = time.time() - start_time
     
+    stage['name'] = '模块6_保存结果'
     result = {
         "product_id": product_id,
         "title": parsed["title"],
@@ -582,3 +587,25 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ 运行出错: {e}")
         sys.exit(1)
+
+async def run(url, search_max=15):
+    """主流程入口：统一捕获异常并标注失败阶段。
+
+    原先异常只在 GUI 层被转成 str(e)，用户看到的是裸异常文本，
+    分不清是解析失败还是下载失败，也没有堆栈可查。
+    这里用 stage 跟踪当前阶段，出错时把阶段、异常与完整堆栈
+    一并打印（经 app_logger 的 tee 自动落盘）。
+    """
+    stage = {'name': '初始化'}
+    try:
+        return await _run_impl(url, search_max, stage)
+    except Exception as exc:
+        import traceback as _tb
+        print('\n[异常] 阶段「%s」失败：%s' % (stage['name'], exc))
+        print(_tb.format_exc())
+        return {
+            'success': False,
+            'stage': stage['name'],
+            'error': '阶段「%s」失败：%s' % (stage['name'], exc),
+        }
+

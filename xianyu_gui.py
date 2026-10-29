@@ -411,6 +411,9 @@ class Api:
                 except Exception as e:
                     result_holder['error'] = str(e)
                     result_holder['traceback'] = traceback.format_exc()
+                    # 打印到 stdout，经 app_logger 的 tee 落盘，便于事后定位
+                    print('[GUI] 任务线程异常: %s' % e)
+                    print(result_holder['traceback'])
                 finally:
                     loop.close()
                     # 线程真正结束后才放开运行锁（覆盖 join 超时的情况）
