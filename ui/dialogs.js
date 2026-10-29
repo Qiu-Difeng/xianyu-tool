@@ -198,7 +198,7 @@ function copyFeedbackText() {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
       const btn = document.getElementById('copyFbBtn');
-      btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已复制，发邮件给卖家';
+      btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已复制，发邮件给卖家';
       btn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
     });
   } else {
@@ -210,7 +210,7 @@ function copyFeedbackText() {
     document.execCommand('copy');
     document.body.removeChild(ta);
     const btn = document.getElementById('copyFbBtn');
-    btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已复制，去QQ发给卖家';
+    btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已复制，去QQ发给卖家';
     btn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
   }
 }

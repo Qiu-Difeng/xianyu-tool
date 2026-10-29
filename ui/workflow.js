@@ -124,13 +124,17 @@ function displayResult(result) {
   // 耗时面板
   if (result.timings) {
     const t = result.timings;
-    const maxT = Math.max(...Object.values(t));
-    html += '<div class="timings"><h4>⏱ 各模块耗时</h4>';
+    // timings 里可能有非数字值（如文案超时写入的 "超时"），
+    // 直接 Math.max 会得到 NaN，导致所有进度条宽度变成无效值
+    const numeric = Object.values(t).filter(function (v) { return typeof v === 'number' && v > 0; });
+    const maxT = numeric.length ? Math.max.apply(null, numeric) : 1;
+    html += '<div class="timings"><h4><svg class="ico"><use href="#i-loader"/></svg> 各模块耗时</h4>';
     for (const [name, val] of Object.entries(t)) {
-      const pct = (val / maxT * 100).toFixed(0);
-      html += '<div class="timing-row"><span class="timing-name">' + name + '</span>' +
+      const isNum = (typeof val === 'number');
+      const pct = isNum ? Math.min(100, (val / maxT * 100)).toFixed(0) : 0;
+      html += '<div class="timing-row"><span class="timing-name">' + escapeHtml(name) + '</span>' +
         '<div class="timing-bar"><div class="timing-bar-fill" style="width:' + pct + '%"></div></div>' +
-        '<span class="timing-val">' + val + '秒</span></div>';
+        '<span class="timing-val">' + (isNum ? val + '秒' : escapeHtml(String(val))) + '</span></div>';
     }
     html += '</div>';
   }
@@ -258,20 +262,21 @@ function refreshCopy(idx) {
   const v = window._copies[idx];
   const tab = document.querySelectorAll('.copy-tab')[idx];
   const refreshIcon = tab.querySelector('.refresh-icon');
-  refreshIcon.textContent = '⏳';
+  refreshIcon.innerHTML = '<svg class="ico spin-ico"><use href="#i-loader"/></svg>';
 
-  addLog('重新生成 ' + escapeHtml(v.label) + '...', 'accent');
+  addLog('重新生成 ' + v.label + '...', 'accent');
 
   pywebview.api.regenerate_copy(_outputDir, v.key).then(r => {
     if (r.success) {
       window._copies[idx].text = r.text;
       window._copies[idx].banned = r.banned;
       switchCopy(idx);
-      addLog('' + escapeHtml(v.label) + ' 重新生成完成 (' + r.text.length + '字)', 'success');
+      addLog('' + v.label + ' 重新生成完成 (' + r.text.length + '字)', 'success');
     } else {
       addLog('重新生成失败: ' + r.error, 'error');
     }
-    refreshIcon.textContent = '<svg class="ico"><use href="#i-refresh"/></svg>';
+    // 原实现用 textContent 塞 HTML 字符串，界面上会显示成标签源码
+    refreshIcon.innerHTML = '<svg class="ico"><use href="#i-refresh"/></svg>';
   });
 }
 
@@ -494,7 +499,7 @@ function downloadUpdate() {
   pywebview.api.download_update().then(result => {
     if (result.success) {
       status.textContent = '已打开浏览器下载';
-      btn.textContent = '<svg class="ico"><use href="#i-check"/></svg> 已打开浏览器';
+      btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已打开浏览器';
 
       // 替换弹窗内容为提示
       const overlay = document.getElementById('updateOverlay');
@@ -512,13 +517,13 @@ function downloadUpdate() {
     } else {
       status.textContent = '打开失败';
       btn.disabled = false;
-      btn.textContent = '<svg class="ico"><use href="#i-download"/></svg> 重新尝试';
+      btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新尝试';
       status.style.color = 'var(--error)';
       status.textContent = '失败: ' + (result.error || '未知错误');
     }
   }).catch(err => {
     btn.disabled = false;
-    btn.textContent = '<svg class="ico"><use href="#i-download"/></svg> 重新下载';
+    btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新下载';
     status.style.color = 'var(--error)';
     status.textContent = '失败: ' + err.toString();
   });
