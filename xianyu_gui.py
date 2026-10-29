@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import time
 import base64
 import asyncio
 import threading
@@ -369,6 +370,65 @@ class Api:
             return {'theme': 'light' if light else 'dark'}
         except Exception:
             return {'theme': 'dark'}
+
+    # ============ 配置备份 / 恢复 ============
+    def export_config(self):
+        """把大模型配置与主题导出成 JSON 文本
+
+        含明文 API Key，界面侧必须提示用户妥善保管、不要外发。
+        """
+        try:
+            import llm_provider as lp
+            cfg = lp.load_config()
+            ui = self.get_ui_state()
+            data = {
+                '_tool': 'XianyuTool',
+                '_format': 1,
+                '_exported_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'llm': {
+                    'text': cfg['text'],
+                    'vision': cfg['vision'],
+                },
+                'ui': {'theme': ui.get('theme', 'system')},
+            }
+            return {'success': True,
+                    'json': json.dumps(data, ensure_ascii=False, indent=2)}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def import_config(self, text):
+        """从 JSON 文本恢复配置，校验后复用 save_llm_config 落盘"""
+        try:
+            if not text or not text.strip():
+                return {'success': False, 'error': '请先粘贴配置内容'}
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as e:
+                return {'success': False, 'error': 'JSON 格式错误：%s' % e}
+            if not isinstance(data, dict):
+                return {'success': False, 'error': '内容不是有效的配置对象'}
+            if data.get('_tool') != 'XianyuTool':
+                return {'success': False, 'error': '这不是本工具的配置文件'}
+
+            llm = data.get('llm') or {}
+            text_sec = llm.get('text') or {}
+            vision_sec = llm.get('vision') or {}
+            if not text_sec.get('api_key') and not vision_sec.get('api_key'):
+                return {'success': False, 'error': '配置里没有找到可用的 API Key'}
+
+            result = self.save_llm_config(text_sec, vision_sec)
+            if not result.get('success'):
+                return result
+
+            ui = data.get('ui') or {}
+            if ui.get('theme') in ('system', 'dark', 'light'):
+                self.save_ui_state({'theme': ui['theme']})
+
+            return {'success': True,
+                    'text_ready': result.get('text_ready'),
+                    'vision_ready': result.get('vision_ready')}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     # ============ 日志 ============
     def get_log_info(self, tail=200):
