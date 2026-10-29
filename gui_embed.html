@@ -263,6 +263,9 @@
 .modal-grid2 { display: flex; gap: 8px; }
 .modal-grid2 > *:first-child { flex: 2; }
 .modal-grid2 > *:last-child { flex: 1; }
+.guide-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 22px; }
+.guide-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--divider); transition: all 0.3s ease; }
+.guide-dot.active { width: 24px; background: var(--accent2); }
 .modal-note { color: var(--text-faint); font-size: 11px; line-height: 1.6; margin: 12px 0 0; }
 
 body, .tab-content, .info-card, .footer, .btn-update, .input-wrap input {
@@ -1174,125 +1177,125 @@ window.addEventListener('pywebviewready', () => {
 });
 
 function showGuide() {
+  // 引导需要按步骤重绘，不适合静态的 Modal 工厂，
+  // 因此复用同一套 .modal-* 样式类，去掉内联样式。
   const overlay = document.createElement('div');
   overlay.id = 'guideOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
-  
+  overlay.className = 'modal-overlay';
+  overlay.style.zIndex = '9999';
+
   const steps = [
-    { icon: '<svg class="ico"><use href="#i-fish"/></svg>', title: '欢迎使用闲鱼辅助工具', desc: '帮你一键解析闲鱼商品、去水印、生成三版文案、搜补充图', },
-    { icon: '<svg class="ico"><use href="#i-link"/></svg>', title: '第一步：粘贴链接', desc: '把闲鱼商品分享链接粘贴到顶部输入框，点「开始处理」', },
-    { icon: '<svg class="ico"><use href="#i-key"/></svg>', title: '第二步：首次需扫码登录', desc: '首次使用会弹出Chrome窗口，扫码登录闲鱼即可，之后自动记住登录态', },
-    { icon: '<svg class="ico"><use href="#i-sparkle"/></svg>', title: '第三步：等待处理完成', desc: '自动解析商品→下载图片→去水印→生成V1/V2/V3三版文案，约1-2分钟', },
-    { icon: '<svg class="ico"><use href="#i-download"/></svg>', title: '第四步：保存结果', desc: '图片、文案、补充图都可以一键保存到你选的位置', },
-    { icon: '<svg class="ico"><use href="#i-info"/></svg>', title: '遇到问题？', desc: '点击底部的「问题反馈」按钮描述你遇到的问题', },
+    { icon: 'i-fish', title: '欢迎使用闲鱼辅助工具', desc: '帮你一键解析闲鱼商品、去水印、生成三版文案、搜补充图' },
+    { icon: 'i-link', title: '第一步：粘贴链接', desc: '把闲鱼商品分享链接粘贴到顶部输入框，点「开始」' },
+    { icon: 'i-key', title: '第二步：首次需扫码登录', desc: '首次使用会弹出浏览器窗口，扫码登录闲鱼即可，之后自动记住登录态' },
+    { icon: 'i-sparkle', title: '第三步：等待处理完成', desc: '自动解析商品 → 下载图片 → 去水印 → 生成三版文案，约 1-2 分钟' },
+    { icon: 'i-download', title: '第四步：保存结果', desc: '图片、文案、补充图都可以一键保存到你选的位置' },
+    { icon: 'i-info', title: '遇到问题？', desc: '点击底部的「问题反馈」按钮描述你遇到的问题' },
   ];
-  
+
   let currentStep = 0;
-  
+
   function renderStep() {
     const step = steps[currentStep];
     const isLast = currentStep === steps.length - 1;
     const isFirst = currentStep === 0;
-    
-    overlay.innerHTML = `
-      <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:36px;max-width:460px;width:90%;box-shadow:var(--shadow);text-align:center;animation:fadeInUp 0.4s ease;">
-        <div style="font-size:48px;margin-bottom:16px;">${step.icon}</div>
-        <h2 style="color:var(--text);margin-bottom:12px;font-size:20px;">${step.title}</h2>
-        <p style="color:var(--text-dim);font-size:14px;line-height:1.8;margin-bottom:28px;">${step.desc}</p>
-        
-        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">
-          ${steps.map((_, i) => `<div style="width:${i === currentStep ? '24px' : '8px'};height:8px;border-radius:4px;background:${i === currentStep ? 'var(--accent2)' : 'var(--divider)'};transition:all 0.3s;"></div>`).join('')}
-        </div>
-        
-        <div style="display:flex;gap:12px;">
-          ${!isFirst ? '<button onclick="guidePrev()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">上一步</button>' : ''}
-          ${isLast 
-            ? '<button onclick="closeGuide()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-check"/></svg> 开始使用</button>'
-            : '<button onclick="guideNext()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">下一步</button>'}
-        </div>
-        ${isFirst ? '<p style="margin-top:16px;font-size:12px;color:var(--text-dim);cursor:pointer;" onclick="closeGuide()">跳过引导</p>' : ''}
-      </div>
-    `;
+
+    const dots = steps.map((_, i) =>
+      '<span class="guide-dot' + (i === currentStep ? ' active' : '') + '"></span>'
+    ).join('');
+
+    let actions = '';
+    if (!isFirst) actions += '<button class="modal-btn" data-guide="prev">上一步</button>';
+    actions += isLast
+      ? '<button class="modal-btn primary" data-guide="done"><svg class="ico"><use href="#i-check"/></svg>开始使用</button>'
+      : '<button class="modal-btn primary" data-guide="next">下一步</button>';
+
+    overlay.innerHTML =
+      '<div class="modal-card" style="text-align:center;padding:34px 32px;">' +
+        '<div class="modal-icon"><svg class="ico" style="width:44px;height:44px;"><use href="#' + step.icon + '"/></svg></div>' +
+        '<h2 class="modal-title">' + step.title + '</h2>' +
+        '<p class="modal-desc" style="margin-bottom:24px;">' + step.desc + '</p>' +
+        '<div class="guide-dots">' + dots + '</div>' +
+        '<div class="modal-actions">' + actions + '</div>' +
+        (isFirst ? '<p class="modal-foot" style="cursor:pointer;margin-top:14px;" data-guide="skip">跳过引导</p>' : '') +
+      '</div>';
+
+    overlay.querySelectorAll('[data-guide]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        const act = el.getAttribute('data-guide');
+        if (act === 'next') { currentStep++; renderStep(); }
+        else if (act === 'prev') { currentStep--; renderStep(); }
+        else { closeGuide(); }
+      });
+    });
   }
-  
-  window.guideNext = () => { if (currentStep < steps.length - 1) { currentStep++; renderStep(); } };
-  window.guidePrev = () => { if (currentStep > 0) { currentStep--; renderStep(); } };
-  window.closeGuide = () => { 
+
+  function closeGuide() {
     const ov = document.getElementById('guideOverlay');
     if (ov) ov.remove();
     patchUiState({ guide_seen: true });
-  };
-  
+  }
+
+  window.guideNext = function () { if (currentStep < steps.length - 1) { currentStep++; renderStep(); } };
+  window.guidePrev = function () { if (currentStep > 0) { currentStep--; renderStep(); } };
+  window.closeGuide = closeGuide;
+
   renderStep();
   document.body.appendChild(overlay);
 }
 
 // === 问题反馈 ===
 function showFeedback() {
-  const overlay = document.createElement('div');
-  overlay.id = 'feedbackOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
-  
-  overlay.innerHTML = `
-    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;">
-      <h2 style="color:var(--text);margin-bottom:16px;text-align:center;"><svg class="ico"><use href="#i-pen"/></svg> 问题反馈</h2>
-      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">遇到bug或有建议？描述一下，复制后发邮件给卖家</p>
-      
-      <textarea id="feedbackContent" placeholder="请描述遇到的问题..." 
-        style="width:100%;height:120px;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:14px;resize:none;box-sizing:border-box;margin-bottom:12px;"></textarea>
-      
-      <input type="text" id="feedbackContact" placeholder="联系方式（选填，方便回复你）" 
-        style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:14px;margin-bottom:16px;box-sizing:border-box;" />
-      
-      <div style="display:flex;gap:12px;">
-        <button onclick="document.getElementById('feedbackOverlay').remove()" 
-          style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">取消</button>
-        <button onclick="submitFeedback()" 
-          style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">提交</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
+  const body =
+    '<p class="modal-note" style="text-align:left;margin:0 0 14px;">遇到 bug 或有建议？描述一下，复制后发邮件给卖家</p>' +
+    '<textarea id="feedbackContent" class="modal-input" placeholder="请描述遇到的问题..." style="height:120px;resize:none;margin-bottom:12px;"></textarea>' +
+    '<input type="text" id="feedbackContact" class="modal-input" placeholder="联系方式（选填，方便回复你）" />';
+
+  Modal.open({
+    id: 'feedbackOverlay',
+    icon: 'i-pen',
+    title: '问题反馈',
+    body: body,
+    actions: [
+      { text: '取消', onclick: () => Modal.close('feedbackOverlay') },
+      { text: '提交', primary: true, onclick: submitFeedback },
+    ],
+  });
 }
 
 function submitFeedback() {
   const content = document.getElementById('feedbackContent').value.trim();
   if (!content) return;
   const contact = document.getElementById('feedbackContact').value.trim();
-  
-  // 生成反馈文本，引导用户手动发送
+
   const timeStr = new Date().toLocaleString('zh-CN');
   let feedbackText = '【闲鱼辅助工具-问题反馈】\n';
   feedbackText += '时间：' + timeStr + '\n';
   feedbackText += '问题：' + content + '\n';
   if (contact) feedbackText += '\n联系方式：' + contact;
-  
-  // 替换为结果展示
-  const box = document.getElementById('feedbackOverlay');
-  box.innerHTML = `
-    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-      <div style="font-size:40px;margin-bottom:12px;"><svg class="ico"><use href="#i-download"/></svg></div>
-      <h2 style="color:var(--text);margin-bottom:8px;">反馈已生成</h2>
-      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">请复制以下内容，发给卖家反馈问题</p>
-      
-      <div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:16px;text-align:left;">
-        <pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text);font-size:13px;line-height:1.6;margin:0;font-family:inherit;">${escapeHtml(feedbackText)}</pre>
-      </div>
-      
-      <div style="background:rgba(213,56,46,0.15);border-radius:10px;padding:14px;margin-bottom:16px;">
-        <p style="font-size:13px;color:var(--text-dim);margin-bottom:6px;"><svg class="ico"><use href="#i-mail"/></svg> 卖家邮箱</p>
-        <p style="font-size:16px;color:var(--accent2);font-weight:600;user-select:text;">3144994163@qq.com</p>
-      </div>
-      
-      <button onclick="copyFeedbackText()" id="copyFbBtn" 
-        style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制反馈内容</button>
-      <button onclick="document.getElementById('feedbackOverlay').remove()" 
-        style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;">关闭</button>
-    </div>
-  `;
-  
-  // 存到全局供复制用
   window._feedbackText = feedbackText;
+
+  const body =
+    '<div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:14px;text-align:left;">' +
+      '<pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text);font-size:13px;line-height:1.6;margin:0;font-family:inherit;">' +
+      escapeHtml(feedbackText) + '</pre>' +
+    '</div>' +
+    '<div style="background:var(--accent-soft);border-radius:10px;padding:14px;margin-bottom:6px;">' +
+      '<p style="font-size:12px;color:var(--text-dim);margin:0 0 6px;"><svg class="ico"><use href="#i-mail"/></svg> 卖家邮箱</p>' +
+      '<p style="font-size:16px;color:var(--accent2);font-weight:600;user-select:text;margin:0;">3144994163@qq.com</p>' +
+    '</div>';
+
+  Modal.open({
+    id: 'feedbackOverlay',
+    icon: 'i-download',
+    title: '反馈已生成',
+    desc: '请复制以下内容，发给卖家反馈问题',
+    body: body,
+    actions: [
+      { text: '<svg class="ico"><use href="#i-copy"/></svg> 一键复制反馈内容', primary: true, id: 'copyFbBtn', onclick: copyFeedbackText },
+      { text: '关闭', onclick: () => Modal.close('feedbackOverlay') },
+    ],
+  });
 }
 
 function copyFeedbackText() {
@@ -1737,70 +1740,63 @@ window._updateDownloadProgress = function(pct) {
 };
 
 function showUpdateModal(info) {
-  // 移除已有弹窗
-  const existing = document.getElementById('updateOverlay');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'updateOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-bg);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:fadeIn 0.3s ease;';
-
-  let contentHtml = '';
-
+  // 三种状态（出错 / 已最新 / 有新版）共用同一套工厂骨架
   if (info.error) {
-    // 网络错误
-    contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-globe"/></svg></div>
-      <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">检查更新失败</h2>
-      <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;line-height:1.6;">网络连接失败，请稍后重试</p>
-      <p style="color:var(--text-dim);font-size:11px;margin-bottom:20px;opacity:0.6;">${escapeHtml(info.error)}</p>
-      <button onclick="document.getElementById('updateOverlay').remove()" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);font-size:14px;cursor:pointer;">知道了</button>
-    `;
-  } else if (info.no_update) {
-    // 已是最新
-    contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-check"/></svg></div>
-      <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已是最新版本</h2>
-      <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;">当前版本 v${info.current || '1.0'}，无需更新</p>
-      <button onclick="document.getElementById('updateOverlay').remove()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;">好的</button>
-    `;
-  } else {
-    // 有新版本
-    const notes = info.release_notes || '';
-    const notesHtml = notes ? `
-      <div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:16px;max-height:150px;overflow-y:auto;">
-        <pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text-dim);font-size:12px;line-height:1.6;margin:0;font-family:inherit;">${escapeHtml(notes)}</pre>
-      </div>` : '';
-
-    contentHtml = `
-      <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-sparkle"/></svg></div>
-      <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">发现新版本</h2>
-      <p style="color:var(--accent2);font-size:16px;margin-bottom:6px;font-weight:600;">v${escapeHtml(info.latest_version)}</p>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">当前版本 v${escapeHtml(info.current_version)}</p>
-      ${notesHtml}
-      <div id="updateDownloadArea" style="margin-bottom:16px;">
-        <div style="background:var(--panel-bg);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">
-          <div id="updateDownloadBar" style="height:100%;background:var(--accent-grad);background-size:200% 100%;width:0%;border-radius:8px;transition:width 0.3s ease;animation:shimmer 2s linear infinite;"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);">
-          <span id="updateDownloadStatus">点击下方按钮开始下载</span>
-          <span id="updateDownloadPct">0%</span>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;">
-        <button onclick="skipUpdate('${String(info.latest_version || '').replace(/[^0-9A-Za-z.]/g, '')}')" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:13px;cursor:pointer;">跳过此版本</button>
-        <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;">稍后</button>
-        <button id="downloadUpdateBtn" onclick="downloadUpdate()" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent-grad);color:white;font-size:15px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-download"/></svg> 下载更新</button>
-      </div>
-    `;
+    Modal.open({
+      id: 'updateOverlay',
+      icon: 'i-globe',
+      title: '检查更新失败',
+      desc: '网络连接失败，请稍后重试',
+      body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(info.error) + '</p>',
+      actions: [{ text: '知道了', primary: true, onclick: () => Modal.close('updateOverlay') }],
+    });
+    return;
   }
 
-  overlay.innerHTML = `
-    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-      ${contentHtml}
-    </div>
-  `;
-  document.body.appendChild(overlay);
+  if (info.no_update) {
+    Modal.open({
+      id: 'updateOverlay',
+      icon: 'i-check',
+      title: '已是最新版本',
+      desc: '当前版本 v' + escapeHtml(info.current || '1.0') + '，无需更新',
+      actions: [{ text: '好的', primary: true, onclick: () => Modal.close('updateOverlay') }],
+    });
+    return;
+  }
+
+  const latest = String(info.latest_version || '');
+  const notes = info.release_notes || '';
+  const notesHtml = notes
+    ? '<div style="background:var(--field-bg);border-radius:10px;padding:14px;margin-bottom:16px;max-height:150px;overflow-y:auto;text-align:left;">' +
+      '<pre style="white-space:pre-wrap;word-wrap:break-word;color:var(--text-dim);font-size:12px;line-height:1.6;margin:0;font-family:inherit;">' +
+      escapeHtml(notes) + '</pre></div>'
+    : '';
+
+  const body =
+    '<p class="modal-desc" style="color:var(--accent2);font-size:16px;font-weight:600;margin-bottom:4px;">v' + escapeHtml(latest) + '</p>' +
+    '<p class="modal-desc" style="font-size:12px;margin-bottom:16px;">当前版本 v' + escapeHtml(info.current_version) + '</p>' +
+    notesHtml +
+    '<div id="updateDownloadArea" style="margin-bottom:16px;">' +
+      '<div style="background:var(--panel-bg);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">' +
+        '<div id="updateDownloadBar" style="height:100%;width:0%;border-radius:8px;background:var(--accent-grad);transition:width 0.3s ease;"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);">' +
+        '<span id="updateDownloadStatus">点击下方按钮开始下载</span>' +
+        '<span id="updateDownloadPct">0%</span>' +
+      '</div>' +
+    '</div>';
+
+  Modal.open({
+    id: 'updateOverlay',
+    icon: 'i-sparkle',
+    title: '发现新版本',
+    body: body,
+    actions: [
+      { text: '跳过此版本', onclick: () => skipUpdate(latest.replace(/[^0-9A-Za-z.]/g, '')) },
+      { text: '稍后', onclick: () => Modal.close('updateOverlay') },
+      { text: '<svg class="ico"><use href="#i-download"/></svg> 下载更新', primary: true, id: 'downloadUpdateBtn', onclick: downloadUpdate },
+    ],
+  });
 }
 
 function downloadUpdate() {
