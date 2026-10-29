@@ -80,3 +80,12 @@ XianyuTool_Setup.exe
 闲鱼辅助工具/
 
 api_config.json
+
+# ===== 工作区数据（禁止提交）=====
+# sessions/ 是 WorkBuddy 的会话轨迹（含完整对话内容）
+# memory/ 是项目工作日志（可能含 API Key 等敏感信息）
+sessions/
+memory/
+skills/
+*.trajectory.jsonl
+*.jsonl.deleted.*
