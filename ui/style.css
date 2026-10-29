@@ -589,3 +589,37 @@ body {
   cursor: pointer;
 }
 .history-item .hi-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+/* ============================================================
+   提示词模板
+   ============================================================ */
+.custom-prompt-area { margin-top: 12px; padding: 10px; background: var(--glass-light); border-radius: 12px; }
+.cp-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+.cp-row { display: flex; gap: 8px; }
+.cp-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+.cp-input:focus { outline: none; border-color: var(--accent2); }
+.cp-btn { white-space: nowrap; font-size: 12px; padding: 6px 12px; }
+.cp-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; }
+.cp-tip, .cp-empty { color: var(--text-faint); }
+.cp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent2);
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+.cp-chip:hover { filter: brightness(1.15); }
+.cp-chip .cp-del { opacity: 0.45; padding: 0 2px; font-size: 13px; line-height: 1; }
+.cp-chip .cp-del:hover { opacity: 1; color: var(--error); }

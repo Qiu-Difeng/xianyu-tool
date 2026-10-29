@@ -234,12 +234,17 @@ function renderCopies(data) {
   });
   html += '</div><div id="copyBody"></div>';
   // V3自定义提示词区域
-  html += '<div class="custom-prompt-area" style="margin-top:12px;padding:10px;background:var(--glass-light);border-radius:12px;">';
-  html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;"><svg class="ico"><use href="#i-info"/></svg> V3自定义提示词（可选，不填则默认重写）</div>';
-  html += '<div style="display:flex;gap:8px;">';
-  html += '<input type="text" id="v3CustomPrompt" placeholder="例如：突出性价比，加上使用场景，语气活泼一点" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--glass-border);background:var(--field-bg);color:var(--text);font-size:13px;" />';
-  html += '<button class="btn-refresh" onclick="v3CustomRewrite()" style="white-space:nowrap;"><svg class="ico"><use href="#i-refresh"/></svg> 按提示词重写</button>';
-  html += '</div></div>';
+  html += '<div class="custom-prompt-area">';
+  html += '<div class="cp-label"><svg class="ico"><use href="#i-info"/></svg> V3 自定义提示词（可选，不填则默认重写）</div>';
+  html += '<div class="cp-row">';
+  html += '<input type="text" id="v3CustomPrompt" class="cp-input" placeholder="例如：突出性价比，加上使用场景，语气活泼一点" />';
+  html += '<button class="btn-refresh cp-btn" onclick="savePromptTemplate()"><svg class="ico"><use href="#i-download"/></svg> 存为模板</button>';
+  html += '<button class="btn-refresh cp-btn" onclick="v3CustomRewrite()"><svg class="ico"><use href="#i-refresh"/></svg> 按提示词重写</button>';
+  html += '</div>';
+  html += '<div id="v3TplChips" class="cp-chips"></div>';
+  html += '</div>';
+  // 模板列表异步填充（每次渲染文案都会重建这块）
+  setTimeout(loadPromptTemplates, 80);
   window._copies = data.versions;
   setTimeout(() => { switchCopy(0); }, 50);
   return html;
@@ -557,3 +562,93 @@ function isVersionSkipped(version) {
 window.addEventListener('pywebviewready', () => {
   // Python端会在3秒后自动检查并通过_onSilentUpdateCheck回调通知
   // 这里不需要额外调用，Python端已经处理了
+});
+
+
+// ===== 提示词模板 =====
+function loadPromptTemplates() {
+  const box = document.getElementById('v3TplChips');
+  if (!box) return;
+  pywebview.api.list_prompt_templates().then(function (r) {
+    const items = (r && r.items) || [];
+    window._promptTemplates = items;
+    if (!items.length) {
+      box.innerHTML = '<span class="cp-empty">还没有保存的模板，写完提示词可点「存为模板」</span>';
+      return;
+    }
+    box.innerHTML = '<span class="cp-tip">常用模板：</span>' + items.map(function (it, i) {
+      return '<span class="cp-chip" data-i="' + i + '" onclick="usePromptTemplate(this.dataset.i)" title="' +
+        escapeHtml(it.prompt) + '">' + escapeHtml(it.name) +
+        '<span class="cp-del" data-name="' + escapeHtml(it.name) +
+        '" onclick="event.stopPropagation();deletePromptTemplate(this.dataset.name)">×</span></span>';
+    }).join('');
+  }).catch(function () {});
+}
+
+function usePromptTemplate(idx) {
+  const items = window._promptTemplates || [];
+  const it = items[parseInt(idx, 10)];
+  if (!it) return;
+  const inp = document.getElementById('v3CustomPrompt');
+  if (inp) {
+    inp.value = it.prompt;
+    inp.focus();
+  }
+}
+
+function savePromptTemplate() {
+  const inp = document.getElementById('v3CustomPrompt');
+  const prompt = inp ? inp.value.trim() : '';
+  if (!prompt) {
+    addLog('先在输入框写下提示词，再点「存为模板」', 'warn');
+    return;
+  }
+  window._pendingPrompt = prompt;
+
+  Modal.open({
+    id: 'tplNameOverlay',
+    icon: 'i-download',
+    title: '保存为模板',
+    desc: '给这个提示词起个名字，下次可以一键套用',
+    body: '<input id="tplNameInput" class="modal-input" placeholder="例如：促销风" maxlength="20" />' +
+          '<p class="modal-note">将保存：' + escapeHtml(prompt.slice(0, 60)) +
+          (prompt.length > 60 ? '…' : '') + '</p>',
+    actions: [
+      { text: '取消', onclick: function () { Modal.close('tplNameOverlay'); } },
+      { text: '保存', primary: true, onclick: doSavePromptTemplate },
+    ],
+  });
+  setTimeout(function () {
+    const el = document.getElementById('tplNameInput');
+    if (el) el.focus();
+  }, 200);
+}
+
+function doSavePromptTemplate() {
+  const el = document.getElementById('tplNameInput');
+  const name = el ? el.value.trim() : '';
+  if (!name) {
+    addLog('请填写模板名称', 'warn');
+    return;
+  }
+  pywebview.api.save_prompt_template(name, window._pendingPrompt || '').then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '保存失败', 'error');
+      return;
+    }
+    Modal.close('tplNameOverlay');
+    addLog('模板「' + name + '」已保存', 'success');
+    loadPromptTemplates();
+  }).catch(function (e) { addLog('保存异常：' + e, 'error'); });
+}
+
+function deletePromptTemplate(name) {
+  pywebview.api.delete_prompt_template(name).then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '删除失败', 'error');
+      return;
+    }
+    addLog('模板「' + name + '」已删除', 'accent');
+    loadPromptTemplates();
+  }).catch(function () {});
+}

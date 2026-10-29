@@ -174,6 +174,66 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    # ============ 提示词模板 ============
+    def _tpl_path(self):
+        import llm_provider as lp
+        return os.path.join(lp.user_config_dir(), 'prompt_templates.json')
+
+    def list_prompt_templates(self):
+        """读取已保存的提示词模板"""
+        try:
+            path = self._tpl_path()
+            if not os.path.exists(path):
+                return {'success': True, 'items': []}
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            items = data.get('templates') if isinstance(data, dict) else None
+            return {'success': True, 'items': items or []}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def save_prompt_template(self, name, prompt):
+        """保存模板，同名覆盖；最多保留 30 条"""
+        try:
+            name = (name or '').strip()
+            prompt = (prompt or '').strip()
+            if not name:
+                return {'success': False, 'error': '请填写模板名称'}
+            if not prompt:
+                return {'success': False, 'error': '请填写提示词内容'}
+            if len(name) > 20:
+                return {'success': False, 'error': '模板名不要超过 20 个字'}
+            if len(prompt) > 500:
+                return {'success': False, 'error': '提示词不要超过 500 字'}
+
+            items = self.list_prompt_templates().get('items') or []
+            items = [it for it in items if it.get('name') != name]
+            items.append({'name': name, 'prompt': prompt})
+            items = items[-30:]
+
+            path = self._tpl_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({'templates': items}, f, ensure_ascii=False, indent=2)
+            return {'success': True, 'items': items}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def delete_prompt_template(self, name):
+        """删除指定模板"""
+        try:
+            name = (name or '').strip()
+            items = self.list_prompt_templates().get('items') or []
+            left = [it for it in items if it.get('name') != name]
+            if len(left) == len(items):
+                return {'success': False, 'error': '模板不存在'}
+            path = self._tpl_path()
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({'templates': left}, f, ensure_ascii=False, indent=2)
+            return {'success': True, 'items': left}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     # ============ 历史记录 ============
     def list_history(self, limit=50):
         """扫描输出目录，列出处理过的商品（按时间倒序）"""
