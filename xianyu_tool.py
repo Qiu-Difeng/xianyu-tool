@@ -401,11 +401,10 @@ async def _run_impl(url, search_max, stage):
     print(f"输入链接: {url}")
     print("=" * 60)
     
-    # 清空上一次的输出，只保留最新一次
-    # 只删 output 子目录，保留同级的请求计数文件（见 OUTPUT_ROOT 处的说明）
+    # 输出目录按 product_id 隔离，不再在任务开始时清空整个 output。
+    # 原实现一进来就 rmtree(output/)，批量处理时每条任务会互相删除结果。
+    # 现在改为解析出 product_id 后只覆盖自己那一个目录（见下方）。
     output_parent = os.path.join(OUTPUT_ROOT, "output")
-    if os.path.exists(output_parent):
-        shutil.rmtree(output_parent, ignore_errors=True)
     os.makedirs(output_parent, exist_ok=True)
     
     stage['name'] = '模块1_解析'
@@ -431,6 +430,9 @@ async def _run_impl(url, search_max, stage):
     
     product_id = parsed["item_id"] or "unknown"
     output_root = os.path.join(OUTPUT_ROOT, "output", product_id)
+    # 同一条链接重跑时清掉自己的旧结果，不影响同批次的其他商品
+    if os.path.exists(output_root):
+        shutil.rmtree(output_root, ignore_errors=True)
     os.makedirs(output_root, exist_ok=True)
     
     with open(os.path.join(output_root, "parsed.json"), "w", encoding="utf-8") as f:
