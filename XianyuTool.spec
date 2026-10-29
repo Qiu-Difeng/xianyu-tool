@@ -1,4 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+# 打包前先把 ui/ 源文件合并成单文件 gui_embed.html。
+# pywebview 用 html= 加载时页面是 about:blank，无法引用外部 JS/CSS，
+# 所以源码拆开维护、运行时必须是单文件。
+import subprocess
+import sys as _sys
+subprocess.run([_sys.executable, 'build_ui.py'], check=True)
 import os
 import sys
 from PyInstaller.utils.hooks import collect_data_files
