@@ -42,8 +42,13 @@ a = Analysis(
     pathex=[],
     binaries=binaries,
     datas=datas,
+    # 项目内的模块必须显式列出来：它们在代码里是函数内 import（延迟导入，
+    # 避免模块缺失时整个程序起不来），PyInstaller 的静态分析扫不到，
+    # 结果就是打包版里没有这些模块，运行时才报 ImportError。
     hiddenimports=['playwright.async_api', 'anti_detect', 'watermark_cleaner',
-                   'simple_lama_inpainting', 'certifi', 'llm_provider'],
+                   'simple_lama_inpainting', 'certifi',
+                   'llm_provider', 'image_search', 'task_queue',
+                   'module1_parser', 'module3_copywriter', 'app_logger'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
