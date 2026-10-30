@@ -92,3 +92,6 @@ memory/
 skills/
 *.trajectory.jsonl
 *.jsonl.deleted.*
+
+# 打包临时 spec（发布脚本生成）
+_tmp_build.spec
