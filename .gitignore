@@ -16,7 +16,10 @@ build/
 .idea/
 
 # 测试文件与调试产物
-test_*.py
+# 注意用 /test_*.py：只匹配仓库根目录的临时脚本，
+# 不要写成 test_*.py，否则会把 tests/ 下的正式测试也一起忽略
+/test_*.py
+!tests/
 test_*.png
 test_*.html
 test_*.txt
