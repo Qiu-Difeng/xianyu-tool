@@ -221,3 +221,44 @@ def test_fetch_reviews_unknown_platform():
 def test_default_profile_dir():
     d = isr._default_profile_dir()
     assert 'XianyuTool_ChromeData' in d, '应该和闲鱼共用浏览器配置'
+
+
+# ---------------- 京东图片地址升级 ----------------
+
+def test_upgrade_jd_image_thumbnail_to_original():
+    """京东评价图接口给的是 s128x96 缩略图（才 1.7KB），去掉尺寸段就是原图"""
+    src = '//img30.360buyimg.com/n0/s128x96_jfs/t1/522202/29/14190/504992/x.jpg'
+    out = isr.upgrade_jd_image(src)
+    assert out.startswith('https://'), '协议相对地址要补 https'
+    assert '/s128x96_' not in out
+    assert '/n0/jfs/t1/522202' in out
+
+
+def test_upgrade_jd_image_various_sizes():
+    for size in ['s128x96', 's500x500', 's800x800', 's220x220']:
+        src = '//img30.360buyimg.com/n0/%s_jfs/t1/a/b.jpg' % size
+        out = isr.upgrade_jd_image(src)
+        assert size not in out, '%s 没去掉' % size
+        assert out == 'https://img30.360buyimg.com/n0/jfs/t1/a/b.jpg'
+
+
+def test_upgrade_jd_image_already_original():
+    src = 'https://img30.360buyimg.com/n0/jfs/t1/z.jpg'
+    assert isr.upgrade_jd_image(src) == src
+
+
+def test_upgrade_jd_image_empty():
+    assert isr.upgrade_jd_image('') == ''
+    assert isr.upgrade_jd_image(None) is None
+
+
+# ---------------- 京东商品 ID 提取口径 ----------------
+
+def test_goods_id_uses_data_sku():
+    """京东搜索页的商品 ID 在 data-sku 属性里，不是 item.jd.com 链接"""
+    import re as _re
+    html = ('<li data-sku="10177306531382">A</li>'
+            '<li data-sku="100016407792">B</li>'
+            '<li data-sku="10177306531382">重复</li>')
+    pids = list(dict.fromkeys(_re.findall(r'data-sku="(\d{6,})"', html)))
+    assert pids == ['10177306531382', '100016407792'], pids

@@ -448,6 +448,21 @@ PLATFORM_LOGIN = {
 }
 
 
+def upgrade_jd_image(url):
+    """把京东评价图的缩略图地址换成原图
+
+    京东 CDN 用路径里的尺寸前缀控制大小：
+      //img30.360buyimg.com/n0/s128x96_jfs/t1/.../x.jpg   ← 128x96，才 1.7KB
+    去掉 s128x96_ 这段就是原图：
+      //img30.360buyimg.com/n0/jfs/t1/.../x.jpg           ← 800x800，57KB
+    """
+    if not url:
+        return url
+    if url.startswith('//'):
+        url = 'https:' + url
+    return re.sub(r'/s\d+x\d+_', '/', url)
+
+
 def platform_logged_in(cookies, platform):
     """根据 cookie 判断平台是否已登录"""
     cfg = PLATFORM_LOGIN.get(platform)
@@ -650,11 +665,18 @@ async def fetch_review_images(platform, keyword, max_images=10, timeout=40):
                 await page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
             except Exception:
                 pass
-            await asyncio.sleep(3)
+            await asyncio.sleep(2)
+            # 滚一下触发商品列表加载，不然 data-sku 可能不全
+            try:
+                await page.evaluate('window.scrollTo(0, 600)')
+                await asyncio.sleep(1.5)
+            except Exception:
+                pass
 
             html = await page.content()
             import re as _re
-            pids = list(dict.fromkeys(_re.findall(r'item\.jd\.com/(\d{6,})\.html', html)))
+            # 京东搜索页的商品 ID 在 data-sku 属性里，不是 item.jd.com 链接
+            pids = list(dict.fromkeys(_re.findall(r'data-sku="(\d{6,})"', html)))
             if not pids:
                 return {'source': platform, 'name': cfg['name'], 'status': 'empty',
                         'images': [], 'message': '搜索页没解析到商品（可能需要重新登录）'}
@@ -679,7 +701,10 @@ async def fetch_review_images(platform, keyword, max_images=10, timeout=40):
                 for c in (data.get('comments') or []):
                     for im in (c.get('images') or []):
                         u = im if isinstance(im, str) else (im.get('imgUrl') or '')
-                        if u and u not in images:
+                        if not u:
+                            continue
+                        u = upgrade_jd_image(u)   # 缩略图换成原图
+                        if u not in images:
                             images.append(u)
                         if len(images) >= max_images:
                             break
