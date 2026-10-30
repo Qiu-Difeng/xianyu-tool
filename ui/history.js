@@ -48,6 +48,7 @@ function loadHistory() {
         '</div>' +
         '<button class="hi-btn" data-i="' + i + '" onclick="loadHistoryItem(this.dataset.i)">加载</button>' +
         '<button class="hi-btn" data-dir="' + escapeHtml(it.output_dir) + '" onclick="openHistoryDir(this.dataset.dir)">目录</button>' +
+        '<button class="hi-btn hi-btn-del" data-i="' + i + '" onclick="deleteHistoryItem(this.dataset.i)" title="删除这条记录">删</button>' +
       '</div>';
     }).join('');
   }).catch(function (e) {
@@ -97,4 +98,41 @@ function openHistoryDir(dir) {
   pywebview.api.queue_open_output(dir).then(function (r) {
     if (!r || !r.success) addLog((r && r.error) || '打开目录失败', 'error');
   }).catch(function () {});
+}
+
+
+// ===== 删除历史记录 =====
+function deleteHistoryItem(i) {
+  const items = window._historyItems || [];
+  const it = items[parseInt(i, 10)];
+  if (!it) return;
+
+  Modal.open({
+    id: 'delHistOverlay',
+    icon: 'i-alert',
+    title: '删除这条记录？',
+    desc: '商品图片、文案和结果文件会一起删掉，删了找不回来',
+    body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(it.title) +
+          '<br><span style="font-size:11px;color:var(--text-faint);">' +
+          escapeHtml(it.product_id) + ' · ' + it.images + ' 张图</span></p>',
+    actions: [
+      { text: '取消', onclick: function () { Modal.close('delHistOverlay'); } },
+      { text: '确认删除', primary: true, onclick: function () { doDeleteHistory(it.output_dir, it.title); } },
+    ],
+  });
+}
+
+function doDeleteHistory(dir, title) {
+  pywebview.api.delete_history_item(dir).then(function (r) {
+    Modal.close('delHistOverlay');
+    if (!r || !r.success) {
+      addLog('删除失败：' + ((r && r.error) || '未知错误'), 'error');
+      return;
+    }
+    addLog('已删除记录：' + title, 'accent');
+    loadHistory();
+  }).catch(function (e) {
+    Modal.close('delHistOverlay');
+    addLog('删除异常：' + e, 'error');
+  });
 }

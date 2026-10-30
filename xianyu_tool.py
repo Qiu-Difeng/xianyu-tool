@@ -303,58 +303,64 @@ def regenerate_copy(title, desc, version):
 # 模块5：百度识图搜补充图 + 水印过滤
 # ============================================================
 async def search_extra_images(product_image, output_dir, max_images=15):
-    # 延迟导入：module5未包含在git仓库中，避免顶部import报错
+    """用百度识图找同类商品图，下载后去重
+
+    实测：单次约 10 秒（搜索 9 秒 + 下载 1 秒），每次能拿到 20 张左右，
+    尺寸在 500-670px 之间（百度只给缩略图，改 CDN 参数无效）。
+
+    没有做水印过滤——每张都要调一次视觉模型，30 张就是半分钟以上，
+    而且准确率一般。让用户自己挑更实际。
+    """
     try:
-        from module5_imgsearch_final import search_by_image, download_images, filter_watermarked_images
+        import image_search
     except ImportError:
-        print("  ⚠ 补充图模块未安装（module5_imgsearch_final），仅源码版可用")
+        print("  ⚠ 搜图模块缺失（image_search.py），跳过补充图")
         return [], ""
+
     print(f"\n{'='*60}")
-    print(f"模块5：百度识图搜补充图 + 水印过滤 + 同款检测（最多{max_images}张）")
+    print(f"补充图：百度识图搜同类商品（目标 {max_images} 张）")
     print(f"{'='*60}")
-    
-    # 搜索更多图片（多搜一些，过滤后可能不够）
-    search_count = max_images * 3
-    urls, keyword = await search_by_image(product_image, max_images=search_count)
-    
+
+    # 多搜一倍，留出去重的余量
+    urls, keyword = await image_search.search_by_image(product_image, max_images=max_images * 2)
     if not urls:
         print("  未搜到相似图片，跳过")
-        return [], ""
-    
+        return [], keyword
+
+    print(f"  识别结果: {keyword or '(未识别)'}，拿到 {len(urls)} 条")
+
     search_dir = os.path.join(output_dir, "_raw_search")
-    downloaded = await download_images(urls, search_dir)
-    
-    # 传入参考图做同款检测
-    # filter_watermarked_images 是同步函数（内部要读图、算相似度、调模型），
-    # 直接在 async 函数里调用会阻塞事件循环，改到线程池里执行
-    loop = asyncio.get_event_loop()
-    clean, watermarked = await loop.run_in_executor(
-        None, lambda: filter_watermarked_images(downloaded, reference_image=product_image)
-    )
-    
+    downloaded = await image_search.download_images(urls, search_dir)
+    print(f"  下载成功 {len(downloaded)} 张")
+
+    clean = image_search.dedupe_by_size(downloaded)
+    print(f"  去重后 {len(clean)} 张")
+
+    # 清掉上一次的补充图，避免新旧混在一起
     os.makedirs(output_dir, exist_ok=True)
-    # 清理旧图片
     for old_f in os.listdir(output_dir):
         if old_f.startswith("search_"):
-            os.remove(os.path.join(output_dir, old_f))
-    
+            try:
+                os.remove(os.path.join(output_dir, old_f))
+            except Exception:
+                pass
+
     final_paths = []
     for i, path in enumerate(clean[:max_images]):
-        ext = os.path.splitext(path)[1]
-        dst = os.path.join(output_dir, f"search_{i+1:02d}{ext}")
-        shutil.copy2(path, dst)
-        final_paths.append(dst)
-    
+        dst = os.path.join(output_dir, "search_%02d.jpg" % (i + 1))
+        try:
+            shutil.copy2(path, dst)
+            final_paths.append(dst)
+        except Exception:
+            pass
+
     if os.path.exists(search_dir):
-        shutil.rmtree(search_dir)
-    
-    print(f"  补充图片: {len(final_paths)}张干净同款（排除{len(watermarked)}张）")
+        shutil.rmtree(search_dir, ignore_errors=True)
+
+    print(f"  补充图片: {len(final_paths)} 张")
     return final_paths, keyword
 
 
-# ============================================================
-# 保存文案到文件
-# ============================================================
 def save_copies(copies, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     

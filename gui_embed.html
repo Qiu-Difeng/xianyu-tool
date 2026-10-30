@@ -661,6 +661,16 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+
+/* 动作型 tab：不切换面板，点开弹窗，用虚线边框区分 */
+.tab-btn-action {
+  border-left: 1px dashed var(--glass-border);
+  margin-left: 4px;
+  color: var(--text-dim);
+}
+.tab-btn-action:hover { color: var(--accent2); }
+
+.history-item .hi-btn-del:hover { border-color: var(--error); color: var(--error); }
 </style>
 </head>
 <body>
@@ -841,6 +851,7 @@ body {
   <button class="tab-btn" onclick="switchTab(4)"><svg class="ico"><use href="#i-search"/></svg> 补充图</button>
   <button class="tab-btn" onclick="switchTab(5)"><svg class="ico"><use href="#i-video"/></svg> 视频</button>
   <button class="tab-btn" onclick="switchTab(6)"><svg class="ico"><use href="#i-grid"/></svg> 批量</button>
+  <button class="tab-btn tab-btn-action" onclick="showHistoryModal()" title="查看处理过的商品"><svg class="ico"><use href="#i-clock"/></svg> 历史</button>
 </div>
 
 <div class="tab-content">
@@ -873,7 +884,7 @@ body {
   </div>
 </div>
 
-<div class="footer">闲鱼辅助工具 v1.4.8 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" class="footer-link" onclick="showHistoryModal(); return false;">历史记录</a> · <a href="#" class="footer-link" onclick="showLogModal(); return false;">运行日志</a> · <a href="#" class="footer-link" onclick="showFeedback(); return false;">问题反馈</a> · <a href="#" class="footer-link" onclick="checkUpdate(true); return false;">检查更新</a></div>
+<div class="footer">闲鱼辅助工具 v1.4.8 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" class="footer-link" onclick="showLogModal(); return false;">运行日志</a> · <a href="#" class="footer-link" onclick="showFeedback(); return false;">问题反馈</a> · <a href="#" class="footer-link" onclick="checkUpdate(true); return false;">检查更新</a></div>
 
 <script>
 /* 基础：HTML 转义、背景装饰（星空/雪花） */
@@ -1714,6 +1725,7 @@ function loadHistory() {
         '</div>' +
         '<button class="hi-btn" data-i="' + i + '" onclick="loadHistoryItem(this.dataset.i)">加载</button>' +
         '<button class="hi-btn" data-dir="' + escapeHtml(it.output_dir) + '" onclick="openHistoryDir(this.dataset.dir)">目录</button>' +
+        '<button class="hi-btn hi-btn-del" data-i="' + i + '" onclick="deleteHistoryItem(this.dataset.i)" title="删除这条记录">删</button>' +
       '</div>';
     }).join('');
   }).catch(function (e) {
@@ -1763,6 +1775,43 @@ function openHistoryDir(dir) {
   pywebview.api.queue_open_output(dir).then(function (r) {
     if (!r || !r.success) addLog((r && r.error) || '打开目录失败', 'error');
   }).catch(function () {});
+}
+
+
+// ===== 删除历史记录 =====
+function deleteHistoryItem(i) {
+  const items = window._historyItems || [];
+  const it = items[parseInt(i, 10)];
+  if (!it) return;
+
+  Modal.open({
+    id: 'delHistOverlay',
+    icon: 'i-alert',
+    title: '删除这条记录？',
+    desc: '商品图片、文案和结果文件会一起删掉，删了找不回来',
+    body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(it.title) +
+          '<br><span style="font-size:11px;color:var(--text-faint);">' +
+          escapeHtml(it.product_id) + ' · ' + it.images + ' 张图</span></p>',
+    actions: [
+      { text: '取消', onclick: function () { Modal.close('delHistOverlay'); } },
+      { text: '确认删除', primary: true, onclick: function () { doDeleteHistory(it.output_dir, it.title); } },
+    ],
+  });
+}
+
+function doDeleteHistory(dir, title) {
+  pywebview.api.delete_history_item(dir).then(function (r) {
+    Modal.close('delHistOverlay');
+    if (!r || !r.success) {
+      addLog('删除失败：' + ((r && r.error) || '未知错误'), 'error');
+      return;
+    }
+    addLog('已删除记录：' + title, 'accent');
+    loadHistory();
+  }).catch(function (e) {
+    Modal.close('delHistOverlay');
+    addLog('删除异常：' + e, 'error');
+  });
 }
 /* 各类弹窗：运行日志、新手引导、问题反馈 */
 // ===== 运行日志查看 =====
