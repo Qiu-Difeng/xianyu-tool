@@ -1,0 +1,3 @@
+# 开发/测试用依赖（运行程序不需要）
+-r requirements.txt
+pytest>=7.0

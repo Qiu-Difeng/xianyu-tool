@@ -769,7 +769,7 @@ class Api:
                     ext = f.split('.')[-1].lower()
                     mime = {'jpg': 'jpeg', 'jpeg': 'jpeg', 'png': 'png', 'webp': 'webp'}.get(ext, 'jpeg')
                     images.append(f"data:image/{mime};base64,{b64}")
-                except:
+                except Exception:
                     pass
         return images
 
@@ -778,12 +778,12 @@ class Api:
         try:
             with open(os.path.join(copies_dir, "copies.json"), "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except:
+        except Exception:
             return {"versions": []}
 
         try:
             from module3_copywriter import filter_banned
-        except:
+        except Exception:
             def filter_banned(t): return []
 
         versions = [

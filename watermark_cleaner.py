@@ -293,7 +293,7 @@ def process_single_image(img_path, output_path, reference_image=None):
         import shutil
         try:
             shutil.copy2(img_path, output_path)
-        except:
+        except Exception:
             pass
         return output_path
 

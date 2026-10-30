@@ -54,7 +54,7 @@ class RateLimiter:
                 data = json.load(f)
             if data.get('date') == today:
                 return data.get('count', 0)
-        except:
+        except Exception:
             pass
         return 0
     
@@ -66,7 +66,7 @@ class RateLimiter:
         try:
             with open(self.request_count_file, 'w') as f:
                 json.dump(data, f)
-        except:
+        except Exception:
             pass
     
     def check(self):
@@ -169,7 +169,7 @@ async def random_mouse_move(page):
         try:
             await page.mouse.move(x, y)
             await asyncio.sleep(random.uniform(0.15, 0.35))
-        except:
+        except Exception:
             pass
 
 

@@ -37,18 +37,6 @@ def resolve_api_key():
 
 
 API_KEY, API_KEY_SOURCE = resolve_api_key()
-# 保留 CLIENT 变量名，外部（GUI）仍会把它置 None 来触发重载；
-# 实际客户端每次由 get_llm 按最新配置构造
-CLIENT = None
-
-
-def get_client():
-    """返回文本模型客户端（兼容旧接口）。
-
-    每次都读最新配置，用户改完 Key 或换模型无需重启程序。
-    """
-    client = llm_provider.get_llm('text')
-    return client if client.available() else None
 
 
 def get_model_name():

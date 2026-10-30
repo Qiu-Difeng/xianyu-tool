@@ -181,7 +181,7 @@ def mark_logged_in():
     try:
         with open(LOGIN_FLAG, 'w') as f:
             f.write(str(time.time()))
-    except:
+    except Exception:
         pass
 
 
@@ -235,7 +235,7 @@ async def check_login_status(page):
         if login_required:
             return False
         return None  # 不确定
-    except:
+    except Exception:
         return None
 
 
@@ -252,7 +252,7 @@ async def wait_for_login(page, timeout=180):
     # 直接导航到闲鱼首页（未登录会自动跳转到淘宝登录）
     try:
         await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=20000)
-    except:
+    except Exception:
         pass
     await asyncio.sleep(2)
     
@@ -266,7 +266,7 @@ async def wait_for_login(page, timeout=180):
             await page.goto("https://login.taobao.com/member/login.jhtml?style=mini&from=goofish", 
                           wait_until="domcontentloaded", timeout=20000)
             await asyncio.sleep(2)
-        except:
+        except Exception:
             pass
 
     for i in range(timeout):
@@ -293,7 +293,7 @@ async def wait_for_login(page, timeout=180):
                     
                 if i % 30 == 0:
                     print(f"  ⏳ 仍在等待扫码登录...（已等{i}秒）")
-            except:
+            except Exception:
                 pass
     print(f"  ⚠ 等待超时（{timeout}秒），请确保已登录闲鱼")
     return False
@@ -378,7 +378,7 @@ async def parse_xianyu(url, debug=False):
                         detail_api_body = body
                         if debug:
                             print(f"  [API] {len(body)}B")
-            except:
+            except Exception:
                 pass
         # 拦截商品图片
         if ('alicdn.com' in resp_url
@@ -393,7 +393,7 @@ async def parse_xianyu(url, debug=False):
                     img_id = m.group(1) if m else resp_url
                     if img_id not in captured_images or len(body) > len(captured_images[img_id]):
                         captured_images[img_id] = body
-            except:
+            except Exception:
                 pass
 
     page = await context.new_page()
@@ -454,7 +454,7 @@ async def parse_xianyu(url, debug=False):
             try:
                 await human_like_scroll(page)
                 await random_mouse_move(page)
-            except:
+            except Exception:
                 pass
             # 跳到解析
             goto_parse = True
@@ -471,7 +471,7 @@ async def parse_xianyu(url, debug=False):
         try:
             await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=20000)
             await asyncio.sleep(1)
-        except:
+        except Exception:
             pass
     
     if not goto_parse:
@@ -511,7 +511,7 @@ async def parse_xianyu(url, debug=False):
                     print(f"  ✅ 登录成功，继续解析...")
                     try:
                         await page2.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
-                    except:
+                    except Exception:
                         pass
                     # 轮询等待API数据到达（最多等30秒，每0.5秒检查一次）
                     for _w in range(60):
@@ -521,7 +521,7 @@ async def parse_xianyu(url, debug=False):
                     if not detail_api_body:
                         try:
                             await page2.wait_for_load_state("networkidle", timeout=10000)
-                        except:
+                        except Exception:
                             pass
                         await asyncio.sleep(2)
                     if not detail_api_body:
@@ -566,7 +566,7 @@ async def parse_xianyu(url, debug=False):
         try:
             await human_like_scroll(page)
             await random_mouse_move(page)
-        except:
+        except Exception:
             pass
 
         # 轮询等待API数据（最多等15秒，每0.5秒检查）
@@ -586,7 +586,7 @@ async def parse_xianyu(url, debug=False):
                 limiter.record()
                 await _release()
                 return result
-        except:
+        except Exception:
             pass
 
         # 如果商品页返回错误，检查是否是登录过期
@@ -600,7 +600,7 @@ async def parse_xianyu(url, debug=False):
                 if logged_in:
                     try:
                         await page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
-                    except:
+                    except Exception:
                         pass
                     # 轮询等待API数据
                     for _w in range(30):

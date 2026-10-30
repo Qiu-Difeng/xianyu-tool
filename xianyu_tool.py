@@ -84,7 +84,7 @@ async def download_product_images(image_urls, output_dir, captured_images=None):
                         import io
                         pil_img = Image.open(io.BytesIO(img_data))
                         pil_img.convert('RGB').save(out_path, 'JPEG', quality=95)
-                    except:
+                    except Exception:
                         with open(out_path, "wb") as f:
                             f.write(img_data)
                 else:
@@ -128,7 +128,7 @@ async def download_product_images(image_urls, output_dir, captured_images=None):
                                 import io
                                 pil_img = Image.open(io.BytesIO(resp.content))
                                 pil_img.convert('RGB').save(out_path, 'JPEG', quality=95)
-                            except:
+                            except Exception:
                                 with open(out_path, "wb") as f:
                                     f.write(resp.content)
                         else:
