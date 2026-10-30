@@ -376,12 +376,127 @@ def save_copies(copies, output_dir):
     print(f"  文案已保存: V1/V2/V3 + 原文 + JSON")
 
 
+COPY_FILENAMES = {"v1": "V1_词典替换.txt", "v2": "V2_AI微调.txt", "v3": "V3_AI重写.txt"}
+COPY_HISTORY_KEEP = 10
+
+
+def _backup_copy(output_dir, version, src_path):
+    """覆盖前把当前版本存进 history/，每个版本最多留 10 个
+
+    重新生成文案会直接覆盖文件，用户点了几次刷新后想找回上一版就没了。
+    这里在覆盖前先留一份，文件名带时间戳。
+    """
+    hist = os.path.join(output_dir, "history")
+    os.makedirs(hist, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    dst = os.path.join(hist, "%s_%s.txt" % (version, stamp))
+    # 同一秒内多次覆盖会重名，加一个序号
+    seq = 1
+    while os.path.exists(dst):
+        dst = os.path.join(hist, "%s_%s_%d.txt" % (version, stamp, seq))
+        seq += 1
+    try:
+        shutil.copy2(src_path, dst)
+    except Exception as e:
+        print(f"  备份文案失败（不影响主流程）: {e}")
+        return
+
+    # 只保留最近 N 个
+    siblings = sorted(f for f in os.listdir(hist) if f.startswith(version + "_"))
+    for old in siblings[:-COPY_HISTORY_KEEP]:
+        try:
+            os.remove(os.path.join(hist, old))
+        except Exception:
+            pass
+
+
 def save_single_copy(title, text, version, output_dir):
-    """保存单个版本文案"""
+    """保存单个版本文案（覆盖前自动备份旧版本）"""
     os.makedirs(output_dir, exist_ok=True)
-    fname = {"v1": "V1_词典替换.txt", "v2": "V2_AI微调.txt", "v3": "V3_AI重写.txt"}[version]
-    with open(os.path.join(output_dir, fname), "w", encoding="utf-8") as f:
+    fname = COPY_FILENAMES[version]
+    target = os.path.join(output_dir, fname)
+    if os.path.exists(target):
+        _backup_copy(output_dir, version, target)
+    with open(target, "w", encoding="utf-8") as f:
         f.write(f"标题：{title}\n\n{text}")
+
+
+def list_copy_history(output_dir, version):
+    """列出某版本文案的历史备份，最新的在前"""
+    hist = os.path.join(output_dir, "history")
+    if not os.path.isdir(hist) or version not in COPY_FILENAMES:
+        return []
+
+    items = []
+    for fname in sorted(os.listdir(hist), reverse=True):
+        if not fname.startswith(version + "_"):
+            continue
+        path = os.path.join(hist, fname)
+        try:
+            raw = open(path, "r", encoding="utf-8", errors="replace").read()
+        except Exception:
+            continue
+        m = re.match(r"标题：(.*?)\n\n(.*)", raw, re.S)
+        title = m.group(1) if m else ""
+        body = m.group(2) if m else raw
+        # 文件名形如 v1_20261030_151230.txt 或 v1_20261030_151230_2.txt
+        stamp = fname[len(version) + 1:-4]
+        items.append({
+            "filename": fname,
+            "time": stamp,
+            "title": title,
+            "text": body,
+            "length": len(body),
+        })
+    return items
+
+
+def restore_copy_history(output_dir, version, filename):
+    """把某个历史版本恢复成当前版本（恢复前会把当前版本也备份一次）"""
+    # 防目录穿越：先校验文件名，再拼路径。
+    # 顺序不能反——先 isfile 的话，带 ../ 的名字会先被解析成真实路径
+    if not filename or os.path.sep in filename or "/" in filename or ".." in filename:
+        return {"success": False, "error": "非法文件名"}
+
+    hist = os.path.join(output_dir, "history")
+    src = os.path.join(hist, filename)
+    if not os.path.isfile(src):
+        return {"success": False, "error": "历史文件不存在"}
+
+    try:
+        raw = open(src, "r", encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    m = re.match(r"标题：(.*?)\n\n(.*)", raw, re.S)
+    title = m.group(1) if m else ""
+    body = m.group(2) if m else raw
+
+    target = os.path.join(output_dir, COPY_FILENAMES[version])
+    if os.path.exists(target):
+        _backup_copy(output_dir, version, target)
+
+    try:
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(raw)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    return {"success": True, "title": title, "text": body, "length": len(body)}
+
+
+def delete_copy_history(output_dir, version, filename):
+    """删除某条历史备份"""
+    if not filename or os.path.sep in filename or "/" in filename or ".." in filename:
+        return {"success": False, "error": "非法文件名"}
+    path = os.path.join(output_dir, "history", filename)
+    if not os.path.isfile(path):
+        return {"success": False, "error": "历史文件不存在"}
+    try:
+        os.remove(path)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # ============================================================

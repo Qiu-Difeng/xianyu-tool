@@ -623,3 +623,34 @@ body {
 .cp-chip:hover { filter: brightness(1.15); }
 .cp-chip .cp-del { opacity: 0.45; padding: 0 2px; font-size: 13px; line-height: 1; }
 .cp-chip .cp-del:hover { opacity: 1; color: var(--error); }
+
+/* ============================================================
+   文案历史版本
+   ============================================================ */
+.hist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s ease;
+}
+.hist-item:hover { border-color: var(--accent2); }
+.hist-item .hist-main { flex: 1; min-width: 0; }
+.hist-item .hist-time {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.hist-item .hist-preview {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

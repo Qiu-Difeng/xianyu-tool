@@ -844,6 +844,31 @@ class Api:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def list_copy_history(self, output_dir, version):
+        """列出某版本文案的历史备份"""
+        try:
+            from xianyu_tool import list_copy_history
+            items = list_copy_history(output_dir, version)
+            return {'success': True, 'items': items}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def restore_copy_history(self, output_dir, version, filename):
+        """把历史版本恢复成当前版本"""
+        try:
+            from xianyu_tool import restore_copy_history
+            return restore_copy_history(output_dir, version, filename)
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def delete_copy_history(self, output_dir, version, filename):
+        """删除某条历史备份"""
+        try:
+            from xianyu_tool import delete_copy_history
+            return delete_copy_history(output_dir, version, filename)
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def refresh_search(self, output_dir, max_images=15):
         """重新搜索补充图"""
         try:

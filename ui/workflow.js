@@ -258,7 +258,8 @@ function switchCopy(idx) {
     : '<span class="badge-ok"><svg class="ico"><use href="#i-check"/></svg> 零违禁词</span>';
   document.getElementById('copyBody').innerHTML =
     '<div class="copy-meta"><span>' + v.text.length + '字</span>' + badge +
-    '<button class="btn-copy" onclick="copyText(' + idx + ')" style="margin-left:auto;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制</button></div>' +
+    '<button class="btn-copy" onclick="showCopyHistory(' + idx + ')" title="查看生成历史" style="margin-left:auto;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-clock"/></svg> 历史</button>' +
+    '<button class="btn-copy" onclick="copyText(' + idx + ')" style="margin-left:6px;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制</button></div>' +
     '<div class="copy-content" id="copyText_' + idx + '">' + escapeHtml(v.text) + '</div>';
 }
 
@@ -650,5 +651,103 @@ function deletePromptTemplate(name) {
     }
     addLog('模板「' + name + '」已删除', 'accent');
     loadPromptTemplates();
+  }).catch(function () {});
+}
+
+
+// ===== 文案历史版本 =====
+function showCopyHistory(idx) {
+  const v = window._copies && window._copies[idx];
+  if (!v || !_outputDir) return;
+
+  window._histVersion = v.key;
+  window._histLabel = v.label;
+
+  Modal.open({
+    id: 'copyHistoryOverlay',
+    icon: 'i-clock',
+    title: v.label + ' · 历史版本',
+    desc: '每次重新生成前会自动备份上一版，最多留 10 个',
+    wide: true,
+    body: '<div id="copyHistoryList"><p class="modal-note" style="text-align:center;">读取中…</p></div>',
+    actions: [
+      { text: '关闭', onclick: function () { Modal.close('copyHistoryOverlay'); } },
+    ],
+  });
+  loadCopyHistory(v.key);
+}
+
+function loadCopyHistory(version) {
+  const box = document.getElementById('copyHistoryList');
+  if (!box) return;
+  pywebview.api.list_copy_history(_outputDir, version).then(function (r) {
+    if (!r || !r.success) {
+      box.innerHTML = '<p class="modal-note" style="text-align:center;color:var(--error);">' +
+        escapeHtml((r && r.error) || '读取失败') + '</p>';
+      return;
+    }
+    const items = r.items || [];
+    window._histItems = items;
+    if (!items.length) {
+      box.innerHTML = '<p class="modal-note" style="text-align:center;">这个版本还没有历史备份。<br>点标签上的刷新按钮重新生成，上一版会自动存下来。</p>';
+      return;
+    }
+    box.innerHTML = items.map(function (it, i) {
+      const t = it.time.replace('_', ' ');
+      const timeText = t.length >= 15
+        ? t.slice(0, 4) + '-' + t.slice(4, 6) + '-' + t.slice(6, 8) + ' ' +
+          t.slice(9, 11) + ':' + t.slice(11, 13) + ':' + t.slice(13, 15)
+        : it.time;
+      return '<div class="hist-item">' +
+        '<div class="hist-main">' +
+          '<div class="hist-time">' + escapeHtml(timeText) + ' · ' + it.length + ' 字</div>' +
+          '<div class="hist-preview">' + escapeHtml(it.text.slice(0, 70)) + '</div>' +
+        '</div>' +
+        '<button class="hi-btn" data-i="' + i + '" onclick="restoreHistory(this.dataset.i)">恢复</button>' +
+        '<button class="hi-btn" data-i="' + i + '" onclick="deleteHistory(this.dataset.i)">删除</button>' +
+      '</div>';
+    }).join('');
+  }).catch(function (e) {
+    box.innerHTML = '<p class="modal-note" style="text-align:center;color:var(--error);">读取异常：' +
+      escapeHtml(String(e)) + '</p>';
+  });
+}
+
+function restoreHistory(i) {
+  const items = window._histItems || [];
+  const it = items[parseInt(i, 10)];
+  const version = window._histVersion;
+  if (!it || !version) return;
+
+  pywebview.api.restore_copy_history(_outputDir, version, it.filename).then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '恢复失败', 'error');
+      return;
+    }
+    // 更新界面上的当前版本
+    const idx = (window._copies || []).findIndex(function (x) { return x.key === version; });
+    if (idx >= 0) {
+      window._copies[idx].text = r.text;
+      window._copies[idx].banned = [];
+      switchCopy(idx);
+    }
+    Modal.close('copyHistoryOverlay');
+    addLog('已恢复到 ' + it.time + ' 的版本（' + r.length + ' 字）', 'success');
+  }).catch(function (e) { addLog('恢复异常：' + e, 'error'); });
+}
+
+function deleteHistory(i) {
+  const items = window._histItems || [];
+  const it = items[parseInt(i, 10)];
+  const version = window._histVersion;
+  if (!it || !version) return;
+
+  pywebview.api.delete_copy_history(_outputDir, version, it.filename).then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '删除失败', 'error');
+      return;
+    }
+    addLog('已删除一条历史备份', 'accent');
+    loadCopyHistory(version);
   }).catch(function () {});
 }
