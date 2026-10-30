@@ -78,23 +78,23 @@ def test_platform_names():
 
 def test_collect_order():
     """返回结果必须按 SOURCE_ORDER 排好"""
-    results = run(isr.collect_all_sources('', keyword='', include_platforms=False))
+    results = run(isr.collect_all_sources('', keyword='', sources=['baidu_image', 'baidu_keyword']))
     order = [r['source'] for r in results]
     assert order == ['baidu_image', 'baidu_keyword'], order
 
 
 def test_collect_skips_when_no_input():
     """没图没关键词时两个源都应标 skipped"""
-    results = run(isr.collect_all_sources('', keyword='', include_platforms=False))
+    results = run(isr.collect_all_sources('', keyword='', sources=['baidu_image', 'baidu_keyword']))
     for r in results:
         assert r['status'] == 'skipped', r
 
 
-def test_collect_includes_platforms():
-    results = run(isr.collect_all_sources('', keyword='', include_platforms=True))
+def test_collect_includes_jd():
+    """全开时京东也在里面，且排在百度两个源后面"""
+    results = run(isr.collect_all_sources('', keyword='', sources=None))
     srcs = [r['source'] for r in results]
-    assert 'jd' in srcs and 'pdd' in srcs and 'taobao' in srcs
-    # 平台排在百度后面
+    assert 'jd' in srcs
     assert srcs.index('jd') > srcs.index('baidu_keyword')
 
 
@@ -109,7 +109,7 @@ def test_collect_degrades_on_source_failure(monkeypatch):
     monkeypatch.setattr(isr, 'search_by_image', boom)
     monkeypatch.setattr(isr, 'search_by_keyword', ok_keyword)
 
-    results = run(isr.collect_all_sources('fake.jpg', keyword='插排', include_platforms=False))
+    results = run(isr.collect_all_sources('fake.jpg', keyword='插排', sources=['baidu_image', 'baidu_keyword']))
 
     by_src = {r['source']: r for r in results}
     assert by_src['baidu_image']['status'] == 'failed'
@@ -133,7 +133,7 @@ def test_collect_uses_detected_keyword(monkeypatch):
     monkeypatch.setattr(isr, 'search_by_image', fake_image)
     monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
 
-    run(isr.collect_all_sources('fake.jpg', keyword='', include_platforms=False))
+    run(isr.collect_all_sources('fake.jpg', keyword='', sources=['baidu_image', 'baidu_keyword']))
     assert captured.get('kw') == '智能插排', '应复用识图识别出的关键词'
 
 
@@ -147,15 +147,15 @@ def test_collect_empty_source_marks_empty(monkeypatch):
     monkeypatch.setattr(isr, 'search_by_image', empty_image)
     monkeypatch.setattr(isr, 'search_by_keyword', empty_keyword)
 
-    results = run(isr.collect_all_sources('fake.jpg', keyword='x', include_platforms=False))
+    results = run(isr.collect_all_sources('fake.jpg', keyword='x', sources=['baidu_image', 'baidu_keyword']))
     for r in results:
         assert r['status'] == 'empty', r
 
 
 def test_source_order_constant():
     assert isr.SOURCE_ORDER[0] == 'baidu_image'
-    assert isr.SOURCE_ORDER[-1] == 'taobao'
-    assert len(isr.SOURCE_ORDER) == 5
+    assert isr.SOURCE_ORDER[-1] == 'jd'
+    assert len(isr.SOURCE_ORDER) == 3
 
 
 def test_source_labels_complete():
@@ -200,11 +200,10 @@ def test_platform_logged_in_empty():
 
 @pytest.mark.parametrize('plat', ['taobao', 'pdd'])
 def test_fetch_reviews_unsupported_platforms(plat):
-    """淘宝/拼多多当前版本只返回不可用，并说明要签名"""
+    """淘宝/拼多多已从来源里移除，直接调用也要返回不可用"""
     r = run(isr.fetch_review_images(plat, '插排'))
     assert r['status'] == 'unavailable'
     assert r['images'] == []
-    assert '签名' in r['message']
 
 
 def test_fetch_reviews_no_keyword():
@@ -262,3 +261,138 @@ def test_goods_id_uses_data_sku():
             '<li data-sku="10177306531382">重复</li>')
     pids = list(dict.fromkeys(_re.findall(r'data-sku="(\d{6,})"', html)))
     assert pids == ['10177306531382', '100016407792'], pids
+
+
+# ---------------- 来源勾选与数量控制 ----------------
+
+def test_source_order_only_three():
+    """拼多多和淘宝已移除，只剩三个来源"""
+    assert isr.SOURCE_ORDER == ['baidu_image', 'baidu_keyword', 'jd']
+    assert set(isr.SOURCE_LABELS) == set(isr.SOURCE_ORDER)
+    assert 'pdd' not in isr.SOURCE_LABELS
+    assert 'taobao' not in isr.SOURCE_LABELS
+
+
+def test_source_default_max():
+    assert isr.SOURCE_DEFAULT_MAX['baidu_image'] == 15
+    assert isr.SOURCE_DEFAULT_MAX['baidu_keyword'] == 15
+    assert isr.SOURCE_DEFAULT_MAX['jd'] == 10
+
+
+def test_collect_filters_sources(monkeypatch):
+    """只传某个源时，结果里只有那个源"""
+    called = []
+
+    async def fake_image(*a, **kw):
+        called.append('baidu_image')
+        return ['http://x/1.jpg'], ''
+
+    async def fake_keyword(*a, **kw):
+        called.append('baidu_keyword')
+        return ['http://y/1.jpg']
+
+    monkeypatch.setattr(isr, 'search_by_image', fake_image)
+    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
+
+    results = run(isr.collect_all_sources('fake.jpg', keyword='插排',
+                                          sources=['baidu_keyword']))
+    assert [r['source'] for r in results] == ['baidu_keyword']
+    assert 'baidu_image' not in called, '没勾选的源不应该被调用'
+    assert 'baidu_keyword' in called
+
+
+def test_collect_empty_sources_returns_nothing(monkeypatch):
+    """空列表 = 一个都不要（不是"全部默认"）"""
+    called = []
+
+    async def fake(*a, **kw):
+        called.append(1)
+        return [], ''
+
+    monkeypatch.setattr(isr, 'search_by_image', fake)
+    monkeypatch.setattr(isr, 'search_by_keyword', fake)
+
+    results = run(isr.collect_all_sources('fake.jpg', keyword='x', sources=[]))
+    assert results == []
+    assert called == [], '空选择时不该调用任何搜图函数'
+
+
+def test_collect_none_sources_means_all(monkeypatch):
+    """None 才是默认全开"""
+    async def fake_image(*a, **kw):
+        return ['http://x/1.jpg'], ''
+
+    async def fake_keyword(*a, **kw):
+        return ['http://y/1.jpg']
+
+    monkeypatch.setattr(isr, 'search_by_image', fake_image)
+    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
+    monkeypatch.setattr(isr, 'fetch_review_images', fake_image)
+
+    results = run(isr.collect_all_sources('fake.jpg', keyword='插排', sources=None))
+    srcs = [r['source'] for r in results]
+    assert srcs == ['baidu_image', 'baidu_keyword', 'jd'], srcs
+
+
+def test_collect_ignores_unknown_source(monkeypatch):
+    """传了不认识的源名要忽略掉，不报错"""
+    async def fake(*a, **kw):
+        return ['http://x/1.jpg'], ''
+
+    monkeypatch.setattr(isr, 'search_by_image', fake)
+    results = run(isr.collect_all_sources('fake.jpg', keyword='x',
+                                          sources=['baidu_image', 'pdd', 'nope']))
+    assert [r['source'] for r in results] == ['baidu_image']
+
+
+def test_max_map_applied_per_source(monkeypatch):
+    """每个源用自己配置的数量，不是统一值"""
+    seen = {}
+
+    async def fake_image(img, max_images=15, **kw):
+        seen['image'] = max_images
+        return [], ''
+
+    async def fake_keyword(kw_, max_images=15, **kw):
+        seen['keyword'] = max_images
+        return []
+
+    monkeypatch.setattr(isr, 'search_by_image', fake_image)
+    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
+
+    run(isr.collect_all_sources('fake.jpg', keyword='x',
+                                sources=['baidu_image', 'baidu_keyword'],
+                                max_map={'baidu_image': 5, 'baidu_keyword': 9}))
+    assert seen['image'] == 5, seen
+    assert seen['keyword'] == 9, seen
+
+
+def test_max_map_clamped(monkeypatch):
+    """非法或超范围的数量要兜住"""
+    seen = {}
+
+    async def fake_image(img, max_images=15, **kw):
+        seen['image'] = max_images
+        return [], ''
+
+    monkeypatch.setattr(isr, 'search_by_image', fake_image)
+
+    for val, expect in [(0, isr.SOURCE_DEFAULT_MAX['baidu_image']),
+                        (-3, isr.SOURCE_DEFAULT_MAX['baidu_image']),
+                        ('abc', isr.SOURCE_DEFAULT_MAX['baidu_image']),
+                        (999, 100)]:
+        run(isr.collect_all_sources('fake.jpg', sources=['baidu_image'],
+                                    max_map={'baidu_image': val}))
+        assert seen['image'] == expect, '输入 %r 应得 %d，实际 %d' % (val, expect, seen['image'])
+
+
+def test_jd_requires_login_message(monkeypatch):
+    """京东没登录时要提示去登录"""
+    async def fake_fetch(plat, kw, max_images=10, **kwargs):
+        return {'source': 'jd', 'name': '京东评价图', 'status': 'unavailable',
+                'images': [], 'message': '京东 未登录，先在界面上点「登录京东」'}
+
+    monkeypatch.setattr(isr, 'fetch_review_images', fake_fetch)
+    results = run(isr.collect_all_sources('', keyword='插排', sources=['jd']))
+    assert results[0]['status'] == 'unavailable'
+    assert '登录' in results[0]['message']

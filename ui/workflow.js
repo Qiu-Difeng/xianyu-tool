@@ -53,7 +53,8 @@ function runTool() {
     return;
   }
 
-  const searchMax = parseInt(document.getElementById('searchMax').value) || 15;
+  // 补充图数量改到「补充图」页里按来源配置，主流程用默认值
+  const searchMax = 15;
 
   clearLog();
   addLog('开始处理，和小新小白一起漫步吧~', 'accent');
@@ -348,7 +349,8 @@ function downloadVideo() {
 
 function searchSupplementImages() {
   if (!_outputDir) { setStatus('请先采集商品', 'error'); return; }
-  const maxImg = parseInt(document.getElementById('searchMax').value) || 15;
+  const cfg = readMsCfg();
+  const maxImg = cfg.baidu_image.num + cfg.baidu_keyword.num + cfg.jd.num;
   const btn = document.getElementById('searchSupplementBtn');
   if (btn) { btn.classList.add('loading'); btn.disabled = true; }
   addLog('开始搜索补充图（最多' + maxImg + '张）...', 'accent');
@@ -765,16 +767,68 @@ function deleteHistory(i) {
 // ===== 多源聚合搜图（独立触发）=====
 let _msRunning = false;
 
+// 来源配置：勾选 + 每个源抓多少张
+const MS_SOURCES = [
+  { key: 'baidu_image',   label: '百度识图',   def: 15, note: '以图搜图，最准' },
+  { key: 'baidu_keyword', label: '百度图片',   def: 15, note: '按标题搜，量大' },
+  { key: 'jd',            label: '京东评价图', def: 10, note: '买家实拍，需登录' },
+];
+
+function readMsCfg() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('msCfg') || '{}') || {}; } catch (e) { saved = {}; }
+  const cfg = {};
+  MS_SOURCES.forEach(function (s) {
+    const item = saved[s.key] || {};
+    cfg[s.key] = {
+      on: item.on !== undefined ? !!item.on : true,
+      num: Math.max(1, Math.min(50, parseInt(item.num, 10) || s.def)),
+    };
+  });
+  return cfg;
+}
+
+function saveMsCfg() {
+  const cfg = {};
+  MS_SOURCES.forEach(function (s) {
+    const cb = document.getElementById('src_' + s.key);
+    const nm = document.getElementById('num_' + s.key);
+    cfg[s.key] = {
+      on: cb ? cb.checked : true,
+      num: Math.max(1, Math.min(50, parseInt(nm ? nm.value : s.def, 10) || s.def)),
+    };
+  });
+  try { localStorage.setItem('msCfg', JSON.stringify(cfg)); } catch (e) {}
+  return cfg;
+}
+
+function msCfgHtml() {
+  const cfg = readMsCfg();
+  let html = '<div class="ms-cfg"><span class="ms-cfg-t">来源</span>';
+  MS_SOURCES.forEach(function (s) {
+    const c = cfg[s.key];
+    html += '<label class="ms-cfg-item" title="' + escapeHtml(s.note) + '">' +
+      '<input type="checkbox" id="src_' + s.key + '"' + (c.on ? ' checked' : '') +
+      ' onchange="saveMsCfg()" /> ' + escapeHtml(s.label) +
+      '</label>' +
+      '<input type="number" class="ms-cfg-num" id="num_' + s.key + '" value="' + c.num +
+      '" min="1" max="50" onchange="saveMsCfg()" />' +
+      '<span class="ms-cfg-unit">张</span>';
+  });
+  html += '</div>';
+  return html;
+}
+
 function msBoxHtml() {
   return '<div class="ms-box">' +
     '<div class="ms-head">' +
       '<div><b>多源聚合搜图</b>' +
-        '<span class="ms-hint">从百度识图、百度图片多个来源收集同款图，某个源失败不影响其他</span></div>' +
+        '<span class="ms-hint">勾选要用的来源，各自设抓多少张；某个源失败不影响其他</span></div>' +
       '<button class="btn-refresh ms-btn" id="msBtn" onclick="collectMultiSource()">' +
         '<svg class="ico"><use href="#i-search"/></svg> 开始搜图</button>' +
     '</div>' +
+    msCfgHtml() +
     '<div id="msResult"></div>' +
-    '<div id="msPlatforms" class="ms-plats"></div>' +
   '</div>';
 }
 
@@ -792,12 +846,31 @@ function collectMultiSource() {
     btn.disabled = true;
     btn.innerHTML = '<svg class="ico spin-ico"><use href="#i-loader"/></svg> 搜索中…';
   }
-  if (box) {
-    box.innerHTML = '<p class="modal-note" style="text-align:center;">正在逐个来源搜索，大约需要 20-30 秒…</p>';
+  const cfg = saveMsCfg();
+  const picked = MS_SOURCES.filter(function (s) { return cfg[s.key].on; });
+  if (!picked.length) {
+    _msRunning = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg class="ico"><use href="#i-search"/></svg> 开始搜图';
+    }
+    addLog('至少勾选一个来源', 'warn');
+    return;
   }
-  addLog('开始多源搜图（识图 + 关键词，约 25 秒）', 'accent');
 
-  pywebview.api.collect_extra_images(_outputDir, 15).then(function (r) {
+  const maxMap = {};
+  MS_SOURCES.forEach(function (s) { maxMap[s.key] = cfg[s.key].num; });
+  const totalWanted = picked.reduce(function (a, s) { return a + cfg[s.key].num; }, 0);
+  const srcNames = picked.map(function (s) { return s.label; }).join(' + ');
+
+  if (box) {
+    box.innerHTML = '<p class="modal-note" style="text-align:center;">正在从 ' +
+      escapeHtml(srcNames) + ' 搜索，目标 ' + totalWanted + ' 张，大约 20-40 秒…</p>';
+  }
+  addLog('开始搜图：' + srcNames + '，目标 ' + totalWanted + ' 张', 'accent');
+
+  pywebview.api.collect_extra_images(_outputDir, picked.map(function (s) { return s.key; }), maxMap)
+    .then(function (r) {
     _msRunning = false;
     if (btn) {
       btn.disabled = false;

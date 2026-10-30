@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.5.2'
+            return '1.5.3'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -296,8 +296,12 @@ class Api:
             return {'success': False, 'error': str(e)}
 
     # ============ 批量队列 ============
-    def collect_extra_images(self, output_dir, max_per_source=20, keyword=''):
-        """多源聚合搜补充图（独立运行，不需要先跑主流程之外的准备）"""
+    def collect_extra_images(self, output_dir, sources=None, max_map=None, keyword=''):
+        """多源聚合搜补充图（来源和数量都由前端传）
+
+        sources: ['baidu_image', 'baidu_keyword', 'jd'] 的子集
+        max_map: {'baidu_image': 15, 'baidu_keyword': 15, 'jd': 10}
+        """
         try:
             from xianyu_tool import collect_extra_images
             import asyncio as _aio
@@ -333,7 +337,7 @@ class Api:
                 _aio.set_event_loop(loop)
                 result = loop.run_until_complete(
                     collect_extra_images(ref_img, keyword, output_dir,
-                                         max_per_source=int(max_per_source or 20)))
+                                         sources=sources, max_map=max_map))
             finally:
                 try:
                     loop.close()

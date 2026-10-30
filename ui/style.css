@@ -742,3 +742,43 @@ body {
 .ms-plat-login { cursor: pointer; color: var(--accent2); }
 .ms-plat-login:hover { border-color: var(--accent2); }
 .ms-plat-login:disabled { opacity: 0.6; cursor: default; }
+
+/* 多源搜图的来源配置行 */
+.ms-cfg {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--panel-bg);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 12px;
+}
+.ms-cfg-t { color: var(--text-faint); font-size: 11px; margin-right: 2px; }
+.ms-cfg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.ms-cfg-item input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--accent2);
+  cursor: pointer;
+}
+.ms-cfg-num {
+  width: 46px;
+  padding: 3px 6px;
+  background: var(--field-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  text-align: center;
+}
+.ms-cfg-num:focus { outline: none; border-color: var(--accent2); }
+.ms-cfg-unit { color: var(--text-faint); font-size: 11px; margin-right: 4px; }

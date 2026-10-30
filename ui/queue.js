@@ -28,8 +28,8 @@ function queueAdd() {
 }
 
 function queueStart() {
-  const maxEl = document.getElementById('searchMax');
-  const maxImgs = maxEl ? (parseInt(maxEl.value, 10) || 15) : 15;
+  // 顶部已不再有补充图数量输入，批量任务统一用默认 15
+  const maxImgs = 15;
   pywebview.api.queue_start(maxImgs).then(function (r) {
     if (!r || !r.success) { addLog((r && r.error) || '启动失败', 'error'); return; }
     addLog('批量处理已开始：串行执行，每条之间自动间隔几秒', 'accent');

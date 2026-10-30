@@ -361,17 +361,22 @@ async def search_extra_images(product_image, output_dir, max_images=15):
     return final_paths, keyword
 
 
-async def collect_extra_images(product_image, keyword, output_dir, max_per_source=20):
+async def collect_extra_images(product_image, keyword, output_dir, max_per_source=15,
+                                sources=None, max_map=None):
     """多源聚合补充图（独立功能，可以单独触发，不依赖主流程）
 
-    来源顺序：
-      1. 百度识图（以图搜图）—— 最准，能识别出商品名
-      2. 百度图片（关键词搜图）—— 量大，偶尔能拿到 800px 的图
-      3. 京东 / 拼多多 / 淘宝评价图 —— 实测都要登录 + 强反爬，拿不到
+    来源（用户在前端勾选，默认全开）：
+      1. baidu_image   百度识图（以图搜图）—— 最准，能识别出商品名
+      2. baidu_keyword 百度图片（关键词搜图）—— 量大，偶尔能拿到 800px
+      3. jd            京东买家评价图 —— 需要登录一次，800x800 实拍图
+
+    sources: 要启用的来源列表，None 表示全部
+    max_map: 每个源的数量上限，如 {'baidu_image': 10, 'jd': 5}
+    max_per_source: 没在 max_map 里指定的源用这个兜底
 
     某个源失败不影响其他源，返回里带上每个源的状态和原因。
 
-    返回 {success, sources, total, summary, output_dir}
+    返回 {success, sources, total, summary, output_dir, enabled}
     """
     try:
         import image_search
@@ -382,8 +387,14 @@ async def collect_extra_images(product_image, keyword, output_dir, max_per_sourc
     print("补充图：多源聚合")
     print(f"{'='*60}")
 
+    enabled = [x for x in (image_search.SOURCE_ORDER if sources is None else sources)
+               if x in image_search.SOURCE_ORDER]
+    if not enabled:
+        return {'success': False, 'error': '没有选中任何来源，至少勾选一个'}
+
     sources = await image_search.collect_all_sources(
-        product_image, keyword=keyword or '', max_per_source=max_per_source)
+        product_image, keyword=keyword or '', max_per_source=max_per_source,
+        sources=enabled, max_map=max_map)
 
     # 逐个源下载（只下状态为 ok 的）
     os.makedirs(output_dir, exist_ok=True)
@@ -460,6 +471,7 @@ async def collect_extra_images(product_image, keyword, output_dir, max_per_sourc
         'total': len(final_paths),
         'summary': summary,
         'output_dir': output_dir,
+        'enabled': enabled,
     }
 
 

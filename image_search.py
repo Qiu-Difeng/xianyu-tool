@@ -285,20 +285,26 @@ async def try_platform_review_images(platform, keyword, max_images=10, timeout=1
 # 多源聚合
 # ============================================================
 
-# 展示顺序：先精准的（以图搜图），再量大的（关键词），最后是拿不到的
-SOURCE_ORDER = ['baidu_image', 'baidu_keyword', 'jd', 'pdd', 'taobao']
+# 只保留三个可用/可登录的来源。拼多多和淘宝的评价接口要 mtop sign /
+# anti_content 签名，登录态只是必要条件，做不通所以先移除。
+SOURCE_ORDER = ['baidu_image', 'baidu_keyword', 'jd']
 
 SOURCE_LABELS = {
     'baidu_image': '百度识图',
     'baidu_keyword': '百度图片',
     'jd': '京东评价图',
-    'pdd': '拼多多评价图',
-    'taobao': '淘宝评价图',
+}
+
+# 每个来源的默认抓取数量，前端可覆盖
+SOURCE_DEFAULT_MAX = {
+    'baidu_image': 15,
+    'baidu_keyword': 15,
+    'jd': 10,
 }
 
 
-async def collect_all_sources(product_image, keyword='', max_per_source=20,
-                              include_platforms=True):
+async def collect_all_sources(product_image, keyword='', max_per_source=15,
+                              sources=None, max_map=None):
     """按顺序从各个来源收图，某个源失败不影响其他源
 
     返回列表，每项：
@@ -307,13 +313,29 @@ async def collect_all_sources(product_image, keyword='', max_per_source=20,
 
     调用方按返回顺序展示即可（已经按 SOURCE_ORDER 排好）。
     """
+    # sources 为 None 才默认全开；传空列表表示"一个都不要"（前端全取消勾选）
+    enabled = [x for x in (SOURCE_ORDER if sources is None else sources)
+               if x in SOURCE_ORDER]
+    max_map = max_map or {}
+
+    def _max_for(src):
+        """取某个源的数量上限：优先用传入的映射，否则用默认"""
+        v = max_map.get(src)
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            v = None
+        if v is None or v <= 0:
+            v = max_per_source or SOURCE_DEFAULT_MAX.get(src, 15)
+        return max(1, min(v, 100))
+
     results = []
 
     # --- 源 1：百度识图（以图搜图）---
-    if product_image:
+    if 'baidu_image' in enabled and product_image:
         t0 = asyncio.get_event_loop().time()
         try:
-            urls, detected = await search_by_image(product_image, max_images=max_per_source)
+            urls, detected = await search_by_image(product_image, max_images=_max_for('baidu_image'))
             cost = asyncio.get_event_loop().time() - t0
             if urls:
                 results.append({
@@ -340,7 +362,7 @@ async def collect_all_sources(product_image, keyword='', max_per_source=20,
                 'status': 'failed', 'images': [],
                 'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
             })
-    else:
+    elif 'baidu_image' in enabled:
         results.append({
             'source': 'baidu_image', 'name': SOURCE_LABELS['baidu_image'],
             'status': 'skipped', 'images': [],
@@ -348,10 +370,10 @@ async def collect_all_sources(product_image, keyword='', max_per_source=20,
         })
 
     # --- 源 2：百度图片（关键词）---
-    if keyword:
+    if 'baidu_keyword' in enabled and keyword:
         t0 = asyncio.get_event_loop().time()
         try:
-            urls = await search_by_keyword(keyword, max_images=max_per_source)
+            urls = await search_by_keyword(keyword, max_images=_max_for('baidu_keyword'))
             cost = asyncio.get_event_loop().time() - t0
             results.append({
                 'source': 'baidu_keyword',
@@ -367,23 +389,22 @@ async def collect_all_sources(product_image, keyword='', max_per_source=20,
                 'status': 'failed', 'images': [],
                 'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
             })
-    else:
+    elif 'baidu_keyword' in enabled:
         results.append({
             'source': 'baidu_keyword', 'name': SOURCE_LABELS['baidu_keyword'],
             'status': 'skipped', 'images': [],
             'message': '没有关键词（商品标题为空），跳过', 'cost': 0,
         })
 
-    # --- 源 3~5：电商平台买家评价图 ---
-    # 京东：用户登录过就能抓真实评价图；没登录返回 unavailable + 提示去登录
-    # 淘宝/拼多多：接口要签名，直接标不可用
-    if include_platforms:
-        for plat in ('jd', 'pdd', 'taobao'):
-            try:
-                r = await fetch_review_images(plat, keyword, max_images=10)
-                r.setdefault('cost', 0)
-                results.append(r)
-            except Exception as e:
+    # --- 源 3：京东买家评价图（需登录）---
+    if 'jd' in enabled:
+        plat = 'jd'
+        try:
+            t0 = asyncio.get_event_loop().time()
+            r = await fetch_review_images(plat, keyword, max_images=_max_for('jd'))
+            r.setdefault('cost', round(asyncio.get_event_loop().time() - t0, 1))
+            results.append(r)
+        except Exception as e:
                 results.append({
                     'source': plat, 'name': SOURCE_LABELS.get(plat, plat),
                     'status': 'failed', 'images': [],
@@ -665,21 +686,40 @@ async def fetch_review_images(platform, keyword, max_images=10, timeout=40):
                 await page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
             except Exception:
                 pass
-            await asyncio.sleep(2)
-            # 滚一下触发商品列表加载，不然 data-sku 可能不全
-            try:
-                await page.evaluate('window.scrollTo(0, 600)')
-                await asyncio.sleep(1.5)
-            except Exception:
-                pass
+            # 等页面渲染完再滚：京东搜索页是分块加载的，
+            # 只等 2 秒或只滚一屏常常抓不到 data-sku（实测 3 秒 + 滚两屏才稳）
+            await asyncio.sleep(3)
+            for _pos in (600, 1400):
+                try:
+                    await page.evaluate('window.scrollTo(0, %d)' % _pos)
+                    await asyncio.sleep(1.7)
+                except Exception:
+                    pass
 
             html = await page.content()
             import re as _re
             # 京东搜索页的商品 ID 在 data-sku 属性里，不是 item.jd.com 链接
             pids = list(dict.fromkeys(_re.findall(r'data-sku="(\d{6,})"', html)))
             if not pids:
+                # 兜底：老版页面是 item.jd.com/xxx.html 链接
+                pids = list(dict.fromkeys(
+                    _re.findall(r'item\.jd\.com/(\d{6,})\.html', html)))
+            if not pids:
+                # 京东有搜索频率限制，短时间内搜太多次会返回一句话的提示页
+                if '访问频繁' in html or '无法搜索' in html or '稍后再试' in html:
+                    return {'source': platform, 'name': cfg['name'],
+                            'status': 'unavailable', 'images': [],
+                            'message': '京东限制了搜索频率（提示"访问频繁导致无法搜索"），'
+                                       '等几分钟再试，或者少勾几次'}
+                if 'passport.jd.com' in html or '请登录' in html:
+                    return {'source': platform, 'name': cfg['name'],
+                            'status': 'unavailable', 'images': [],
+                            'message': '京东登录态失效了，重新点一次「登录京东」'}
+                snippet = html[:150].replace('\n', ' ')
                 return {'source': platform, 'name': cfg['name'], 'status': 'empty',
-                        'images': [], 'message': '搜索页没解析到商品（可能需要重新登录）'}
+                        'images': [],
+                        'message': '搜索页没解析到商品（页面 %d 字节）：%s'
+                                   % (len(html), snippet)}
 
             # 2) 逐个商品抓带图评价
             images = []
