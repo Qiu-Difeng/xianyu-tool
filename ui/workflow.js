@@ -175,8 +175,9 @@ function renderImagesWithSave(imgs, subfolder) {
 }
 
 function renderSearchImages(imgs) {
-  // 外框（搜图按钮 + 结果区）+ 图片区，两块分开，
+  // 外框（搜图按钮 + 结果区 + 平台登录状态）+ 图片区，分块管理，
   // 刷新图片时只替换 #searchImgArea，不动按钮和结果
+  setTimeout(loadPlatformStatus, 100);
   return msBoxHtml() + '<div id="searchImgArea">' + searchImgAreaHtml(imgs) + '</div>';
 }
 
@@ -773,6 +774,7 @@ function msBoxHtml() {
         '<svg class="ico"><use href="#i-search"/></svg> 开始搜图</button>' +
     '</div>' +
     '<div id="msResult"></div>' +
+    '<div id="msPlatforms" class="ms-plats"></div>' +
   '</div>';
 }
 
@@ -850,4 +852,72 @@ function renderMsResult(r) {
   html += '</div>';
   box.innerHTML = html;
   addLog(r.summary || '搜图完成', r.total ? 'success' : 'warn');
+}
+
+
+// ===== 电商平台评价图：登录状态与登录 =====
+function loadPlatformStatus() {
+  const box = document.getElementById('msPlatforms');
+  if (!box) return;
+  box.innerHTML = '<span class="ms-plat-hint">读取平台登录状态…</span>';
+
+  pywebview.api.platform_login_status().then(function (r) {
+    if (!r || !r.success) {
+      box.innerHTML = '<span class="ms-plat-hint">读取失败：' +
+        escapeHtml((r && r.error) || '未知错误') + '</span>';
+      return;
+    }
+    renderPlatformStatus(r.platforms || []);
+  }).catch(function () {
+    box.innerHTML = '<span class="ms-plat-hint">读取登录状态失败</span>';
+  });
+}
+
+function renderPlatformStatus(list) {
+  const box = document.getElementById('msPlatforms');
+  if (!box) return;
+
+  // 淘宝/拼多多当前版本只标注不可用（接口要签名）
+  const SUPPORTED = { jd: true };
+
+  let html = '<span class="ms-plat-label">平台评价图：</span>';
+  list.forEach(function (p) {
+    const name = p.name || p.platform;
+    const key = p.platform;
+    if (!SUPPORTED[key]) {
+      html += '<span class="ms-plat ms-plat-off" title="接口需要额外签名，当前版本不支持">' +
+        escapeHtml(name) + ' 暂不支持</span>';
+      return;
+    }
+    if (p.logged_in) {
+      html += '<span class="ms-plat ms-plat-ok">' +
+        '<svg class="ico"><use href="#i-check"/></svg> ' + escapeHtml(name) + ' 已登录</span>';
+    } else {
+      html += '<button class="ms-plat ms-plat-login" data-p="' + escapeHtml(key) +
+        '" onclick="loginPlatform(this.dataset.p)">' +
+        '<svg class="ico"><use href="#i-key"/></svg> 登录' + escapeHtml(name) + '</button>';
+    }
+  });
+  box.innerHTML = html;
+}
+
+function loginPlatform(platform) {
+  const btn = document.querySelector('.ms-plat-login[data-p="' + platform + '"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="ico spin-ico"><use href="#i-loader"/></svg> 等待登录…';
+  }
+  addLog('已打开登录窗口，请在浏览器里完成登录（最多等 4 分钟）', 'accent');
+
+  pywebview.api.login_platform(platform).then(function (r) {
+    if (!r || !r.success) {
+      addLog('登录未完成：' + ((r && r.error) || '未知原因'), 'warn');
+    } else {
+      addLog(r.message || '登录成功', 'success');
+    }
+    loadPlatformStatus();
+  }).catch(function (e) {
+    addLog('登录异常：' + e, 'error');
+    loadPlatformStatus();
+  });
 }

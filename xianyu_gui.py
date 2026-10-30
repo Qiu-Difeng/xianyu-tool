@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.5.0'
+            return '1.5.1'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -340,6 +340,50 @@ class Api:
                 except Exception:
                     pass
             return result
+        except Exception as e:
+            return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}
+
+    # ============ 电商平台评价图 ============
+    def platform_login_status(self):
+        """检查京东/淘宝/拼多多的登录状态"""
+        try:
+            import image_search as isr
+            import asyncio as _aio
+
+            loop = _aio.new_event_loop()
+            try:
+                _aio.set_event_loop(loop)
+                # 一次启动浏览器读完三个平台，别每个平台启一次（会崩 driver）
+                out = loop.run_until_complete(isr.check_all_platforms())
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+            return {'success': True, 'platforms': out}
+        except Exception as e:
+            return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}
+
+    def login_platform(self, platform):
+        """打开可见窗口让用户登录，登录成功后 cookie 留在本地"""
+        try:
+            import image_search as isr
+            import asyncio as _aio
+
+            # 队列或单条任务在跑时不要抢浏览器目录
+            if self._running or self._queue.snapshot().get('active'):
+                return {'success': False, 'error': '有任务正在运行，等它结束再登录'}
+
+            loop = _aio.new_event_loop()
+            try:
+                _aio.set_event_loop(loop)
+                r = loop.run_until_complete(isr.open_platform_login(platform, timeout=240))
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+            return r
         except Exception as e:
             return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}
 

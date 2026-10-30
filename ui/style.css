@@ -712,3 +712,33 @@ body {
 .ms-src .ms-cost { color: var(--text-faint); font-size: 11px; }
 .ms-src .ms-msg { flex: 1; color: var(--text-faint); font-size: 11px;
                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 平台评价图登录状态行 */
+.ms-plats {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--glass-border);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+}
+.ms-plat-label { color: var(--text-faint); }
+.ms-plat-hint { color: var(--text-faint); }
+.ms-plat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+}
+.ms-plat-ok { color: var(--success); border-color: transparent; background: transparent; }
+.ms-plat-off { color: var(--text-faint); opacity: 0.7; cursor: default; }
+.ms-plat-login { cursor: pointer; color: var(--accent2); }
+.ms-plat-login:hover { border-color: var(--accent2); }
+.ms-plat-login:disabled { opacity: 0.6; cursor: default; }

@@ -161,3 +161,63 @@ def test_source_order_constant():
 def test_source_labels_complete():
     for s in isr.SOURCE_ORDER:
         assert s in isr.SOURCE_LABELS, '缺少 %s 的显示名' % s
+
+
+# ---------------- 平台登录检测 ----------------
+
+def test_platform_config_complete():
+    for plat in ('jd', 'taobao', 'pdd'):
+        cfg = isr.PLATFORM_LOGIN[plat]
+        for key in ('name', 'login_url', 'search', 'cookies'):
+            assert key in cfg, '%s 缺少 %s' % (plat, key)
+        assert cfg['login_url'].startswith('https://')
+
+
+def test_platform_logged_in_by_cookie():
+    """有对应 cookie 就算登录，没有就不算"""
+    jd_cookies = [{'name': 'thor'}, {'name': 'pin'}]
+    assert isr.platform_logged_in(jd_cookies, 'jd') is True
+
+    other = [{'name': 'some_other'}]
+    assert isr.platform_logged_in(other, 'jd') is False
+
+
+def test_platform_logged_in_taobao():
+    assert isr.platform_logged_in([{'name': '_tb_token_'}], 'taobao') is True
+    assert isr.platform_logged_in([{'name': 'cookie2'}], 'taobao') is True
+    assert isr.platform_logged_in([{'name': 'x'}], 'taobao') is False
+
+
+def test_platform_logged_in_unknown():
+    assert isr.platform_logged_in([{'name': 'thor'}], 'unknown_plat') is False
+
+
+def test_platform_logged_in_empty():
+    assert isr.platform_logged_in([], 'jd') is False
+
+
+# ---------------- 评价抓取的平台差异 ----------------
+
+@pytest.mark.parametrize('plat', ['taobao', 'pdd'])
+def test_fetch_reviews_unsupported_platforms(plat):
+    """淘宝/拼多多当前版本只返回不可用，并说明要签名"""
+    r = run(isr.fetch_review_images(plat, '插排'))
+    assert r['status'] == 'unavailable'
+    assert r['images'] == []
+    assert '签名' in r['message']
+
+
+def test_fetch_reviews_no_keyword():
+    r = run(isr.fetch_review_images('jd', ''))
+    assert r['status'] == 'skipped'
+    assert '关键词' in r['message']
+
+
+def test_fetch_reviews_unknown_platform():
+    r = run(isr.fetch_review_images('nope', 'x'))
+    assert r['status'] == 'unavailable'
+
+
+def test_default_profile_dir():
+    d = isr._default_profile_dir()
+    assert 'XianyuTool_ChromeData' in d, '应该和闲鱼共用浏览器配置'

@@ -375,11 +375,13 @@ async def collect_all_sources(product_image, keyword='', max_per_source=20,
         })
 
     # --- 源 3~5：电商平台买家评价图 ---
+    # 京东：用户登录过就能抓真实评价图；没登录返回 unavailable + 提示去登录
+    # 淘宝/拼多多：接口要签名，直接标不可用
     if include_platforms:
         for plat in ('jd', 'pdd', 'taobao'):
             try:
-                r = await try_platform_review_images(plat, keyword, max_images=10)
-                r['cost'] = 0
+                r = await fetch_review_images(plat, keyword, max_images=10)
+                r.setdefault('cost', 0)
                 results.append(r)
             except Exception as e:
                 results.append({
@@ -409,3 +411,289 @@ def summarize_sources(results):
     if bad:
         parts.append('%s 不可用' % '、'.join(bad))
     return '；'.join(parts)
+
+# ============================================================
+# 电商平台：登录 + 抓买家评价图
+# ============================================================
+# 三个平台的网页版都要求登录才能看商品和评价（实测：
+# 京东 PC 搜索页跳登录、移动版 403、club.jd.com 评价接口 444；
+# 拼多多直接弹手机验证码登录框；淘宝/天猫要登录态 + mtop 签名）。
+#
+# 所以走"用户登录一次，之后复用登录态"的路子：
+# 程序已经有一份持久化浏览器配置（和闲鱼共用），登录后 cookie 就留下了。
+
+PLATFORM_LOGIN = {
+    'jd': {
+        'name': '京东',
+        'login_url': 'https://passport.jd.com/new/login.aspx',
+        'home': 'https://www.jd.com/',
+        'search': 'https://search.jd.com/Search?keyword={kw}&enc=utf-8',
+        # 京东登录成功的标志：thor（登录票据）或 pin（用户名）
+        'cookies': ('thor', 'pin'),
+    },
+    'taobao': {
+        'name': '淘宝',
+        'login_url': 'https://login.taobao.com/member/login.jhtml',
+        'home': 'https://www.taobao.com/',
+        'search': 'https://s.taobao.com/search?q={kw}',
+        'cookies': ('_tb_token_', 'cookie2', 'tracknick'),
+    },
+    'pdd': {
+        'name': '拼多多',
+        'login_url': 'https://mobile.yangkeduo.com/login.html',
+        'home': 'https://mobile.yangkeduo.com/',
+        'search': 'https://mobile.yangkeduo.com/search_result.html?search_key={kw}',
+        'cookies': ('pdd_user_id', 'api_uid', 'PDDAccessToken'),
+    },
+}
+
+
+def platform_logged_in(cookies, platform):
+    """根据 cookie 判断平台是否已登录"""
+    cfg = PLATFORM_LOGIN.get(platform)
+    if not cfg:
+        return False
+    names = {c.get('name') for c in cookies}
+    return any(n in names for n in cfg['cookies'])
+
+
+async def check_platform_login(platform, user_data_dir=None):
+    """只检查登录态，不打开可见窗口（用无头模式读一遍 cookie）"""
+    from playwright.async_api import async_playwright
+
+    cfg = PLATFORM_LOGIN.get(platform)
+    if not cfg:
+        return {'platform': platform, 'logged_in': False, 'message': '不支持的平台'}
+
+    async with async_playwright() as p:
+        try:
+            ctx = await p.chromium.launch_persistent_context(
+                user_data_dir or _default_profile_dir(),
+                headless=True,
+                args=['--disable-blink-features=AutomationControlled'])
+        except Exception as e:
+            return {'platform': platform, 'logged_in': False,
+                    'message': '读取浏览器配置失败：%s' % e}
+        try:
+            cookies = await ctx.cookies()
+            ok = platform_logged_in(cookies, platform)
+            return {
+                'platform': platform,
+                'name': cfg['name'],
+                'logged_in': ok,
+                'message': '已登录' if ok else '还没登录，需要先登录一次',
+            }
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
+
+
+def _default_profile_dir():
+    """和闲鱼共用一个浏览器配置目录，登录一次就够了"""
+    return os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
+                        'XianyuTool_ChromeData')
+
+
+async def check_all_platforms(user_data_dir=None):
+    """一次启动浏览器，读一遍 cookie，判断三个平台的登录状态
+
+    不要每个平台各启动一次浏览器——连续启动会撞 playwright driver
+    （实测报 EPIPE，整个驱动崩掉）。
+    """
+    from playwright.async_api import async_playwright
+
+    empty = [{'platform': k, 'name': v['name'], 'logged_in': False,
+              'message': '读取失败'} for k, v in PLATFORM_LOGIN.items()]
+
+    async with async_playwright() as p:
+        ctx = None
+        try:
+            ctx = await p.chromium.launch_persistent_context(
+                user_data_dir or _default_profile_dir(),
+                headless=True,
+                args=['--disable-blink-features=AutomationControlled'])
+            cookies = await ctx.cookies()
+        except Exception as e:
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+            return [{'platform': k, 'name': v['name'], 'logged_in': False,
+                     'message': '读取浏览器配置失败：%s' % str(e)[:60]}
+                    for k, v in PLATFORM_LOGIN.items()]
+
+        out = []
+        for k, v in PLATFORM_LOGIN.items():
+            ok = platform_logged_in(cookies, k)
+            out.append({
+                'platform': k,
+                'name': v['name'],
+                'logged_in': ok,
+                'message': '已登录' if ok else '未登录',
+            })
+
+        try:
+            await ctx.close()
+        except Exception:
+            pass
+        return out
+
+
+async def open_platform_login(platform, timeout=240):
+    """打开可见浏览器窗口让用户登录，登录成功后自动关闭
+
+    为什么要用户手动登录：三个平台都用手机验证码或扫码，程序没法代劳。
+    登录一次之后 cookie 存在本地浏览器配置里，后面抓评价就能直接用。
+    """
+    from playwright.async_api import async_playwright
+
+    cfg = PLATFORM_LOGIN.get(platform)
+    if not cfg:
+        return {'success': False, 'error': '不支持的平台：%s' % platform}
+
+    async with async_playwright() as p:
+        try:
+            ctx = await p.chromium.launch_persistent_context(
+                _default_profile_dir(),
+                headless=False,          # 必须可见，用户要扫码
+                args=['--disable-blink-features=AutomationControlled',
+                      '--window-position=100,100', '--window-size=1200,860'],
+                user_agent=UA,
+                viewport={'width': 1200, 'height': 820},
+                locale='zh-CN')
+        except Exception as e:
+            return {'success': False, 'error': '启动浏览器失败（可能闲鱼窗口还开着）：%s' % e}
+
+        try:
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            try:
+                await page.goto(cfg['login_url'], wait_until='domcontentloaded', timeout=30000)
+            except Exception:
+                pass
+
+            # 轮询等待登录完成
+            waited = 0
+            while waited < timeout:
+                await asyncio.sleep(2)
+                waited += 2
+                try:
+                    cookies = await ctx.cookies()
+                except Exception:
+                    break
+                if platform_logged_in(cookies, platform):
+                    return {'success': True, 'platform': platform,
+                            'message': '%s 登录成功' % cfg['name']}
+
+            return {'success': False,
+                    'error': '%s 登录超时（%d 秒），请重试' % (cfg['name'], timeout)}
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
+
+
+async def fetch_review_images(platform, keyword, max_images=10, timeout=40):
+    """用已登录的浏览器抓某平台的买家评价图
+
+    现状：
+    - 京东：登录后搜索页和评价接口都能用，评价数据里 images 字段就是买家实拍图
+    - 淘宝 / 拼多多：接口要签名（mtop / anti_content），暂时只返回"不支持"
+
+    返回 {source, name, status, images, message}
+    """
+    cfg = PLATFORM_LOGIN.get(platform)
+    if not cfg:
+        return {'source': platform, 'name': platform, 'status': 'unavailable',
+                'images': [], 'message': '不支持的平台'}
+
+    if platform != 'jd':
+        return {
+            'source': platform, 'name': cfg['name'], 'status': 'unavailable',
+            'images': [],
+            'message': '%s 的评价接口要额外签名（%s），当前版本只支持京东' % (
+                cfg['name'], 'mtop sign' if platform == 'taobao' else 'anti_content'),
+        }
+
+    if not keyword:
+        return {'source': platform, 'name': cfg['name'], 'status': 'skipped',
+                'images': [], 'message': '没有关键词，无法搜索'}
+
+    from playwright.async_api import async_playwright
+    from urllib.parse import quote
+
+    async with async_playwright() as p:
+        try:
+            ctx = await p.chromium.launch_persistent_context(
+                _default_profile_dir(), headless=True,
+                args=['--disable-blink-features=AutomationControlled'],
+                user_agent=UA, viewport={'width': 1440, 'height': 900}, locale='zh-CN')
+        except Exception as e:
+            return {'source': platform, 'name': cfg['name'], 'status': 'failed',
+                    'images': [], 'message': '启动浏览器失败：%s' % e}
+
+        try:
+            cookies = await ctx.cookies()
+            if not platform_logged_in(cookies, platform):
+                return {'source': platform, 'name': cfg['name'], 'status': 'unavailable',
+                        'images': [], 'message': '%s 未登录，先在界面上点「登录%s」' % (
+                            cfg['name'], cfg['name'])}
+
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+
+            # 1) 搜索页拿商品 ID
+            search_url = cfg['search'].format(kw=quote(keyword))
+            try:
+                await page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
+            except Exception:
+                pass
+            await asyncio.sleep(3)
+
+            html = await page.content()
+            import re as _re
+            pids = list(dict.fromkeys(_re.findall(r'item\.jd\.com/(\d{6,})\.html', html)))
+            if not pids:
+                return {'source': platform, 'name': cfg['name'], 'status': 'empty',
+                        'images': [], 'message': '搜索页没解析到商品（可能需要重新登录）'}
+
+            # 2) 逐个商品抓带图评价
+            images = []
+            for pid in pids[:3]:
+                if len(images) >= max_images:
+                    break
+                api = ('https://club.jd.com/comment/productPageComments.action'
+                       '?productId=%s&score=0&sortType=5&page=0&pageSize=10'
+                       '&isShadowSku=0&fold=1&imageStatus=1' % pid)
+                try:
+                    resp = await page.goto(api, wait_until='domcontentloaded', timeout=20000)
+                    if not resp or resp.status != 200:
+                        continue
+                    raw = await page.inner_text('body')
+                    import json as _json
+                    data = _json.loads(raw)
+                except Exception:
+                    continue
+                for c in (data.get('comments') or []):
+                    for im in (c.get('images') or []):
+                        u = im if isinstance(im, str) else (im.get('imgUrl') or '')
+                        if u and u not in images:
+                            images.append(u)
+                        if len(images) >= max_images:
+                            break
+                    if len(images) >= max_images:
+                        break
+
+            if not images:
+                return {'source': platform, 'name': cfg['name'], 'status': 'empty',
+                        'images': [], 'message': '搜到商品但没找到带图评价'}
+            return {'source': platform, 'name': cfg['name'], 'status': 'ok',
+                    'images': images[:max_images],
+                    'message': '从 %d 个商品抓到带图评价' % min(len(pids), 3)}
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
