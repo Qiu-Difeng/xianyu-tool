@@ -253,34 +253,6 @@ async def search_by_keyword(keyword, max_images=30, timeout=30):
 # 来源 3~5：电商平台买家评价图（实测不可用，保留尝试逻辑）
 # ============================================================
 
-PLATFORM_NOTES = {
-    'jd': '京东要求登录，商品页和评价接口都会拦（实测接口返回 444，浏览器只拿到登录页）',
-    'pdd': '拼多多有 anti_content 签名和 verifyAuthToken，且以图搜货只在 App 内有',
-    'taobao': '淘宝要登录态和 mtop 签名，网页版评价区不对外直出',
-}
-
-
-async def try_platform_review_images(platform, keyword, max_images=10, timeout=15):
-    """尝试从电商平台拿买家评价图
-
-    现状：三个平台都拿不到（要登录 + 强反爬），所以这里直接返回不可用，
-    并把原因带出去给界面展示。
-
-    保留这个函数是为了两件事：
-    1. 界面能明确告诉用户"这个源为什么没图"，而不是静默少几张
-    2. 以后哪个平台开放了（或者有合规的开放接口），只要改这里的实现
-
-    返回 {source, status, images, message}
-    """
-    name = {'jd': '京东', 'pdd': '拼多多', 'taobao': '淘宝'}.get(platform, platform)
-    return {
-        'source': platform,
-        'name': name,
-        'status': 'unavailable',
-        'images': [],
-        'message': PLATFORM_NOTES.get(platform, '暂不支持'),
-    }
-
 # ============================================================
 # 多源聚合
 # ============================================================

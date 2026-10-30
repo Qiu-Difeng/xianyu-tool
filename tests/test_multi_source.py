@@ -57,23 +57,6 @@ def test_summarize_uses_count_not_url_length():
     assert '4 张' not in s
 
 
-# ---------------- 平台不可用 ----------------
-
-@pytest.mark.parametrize('plat', ['jd', 'pdd', 'taobao'])
-def test_platform_unavailable_has_message(plat):
-    r = run(isr.try_platform_review_images(plat, '插排'))
-    assert r['status'] == 'unavailable'
-    assert r['images'] == []
-    assert len(r['message']) > 5, '必须说明为什么不可用'
-    assert r['source'] == plat
-
-
-def test_platform_names():
-    assert run(isr.try_platform_review_images('jd', 'x'))['name'] == '京东'
-    assert run(isr.try_platform_review_images('pdd', 'x'))['name'] == '拼多多'
-    assert run(isr.try_platform_review_images('taobao', 'x'))['name'] == '淘宝'
-
-
 # ---------------- 聚合与降级 ----------------
 
 def test_collect_order():
