@@ -336,18 +336,18 @@ async def search_extra_images(product_image, output_dir, max_images=15):
     clean = image_search.dedupe_by_size(downloaded)
     print(f"  去重后 {len(clean)} 张")
 
-    # 清掉上一次的补充图，避免新旧混在一起
-    os.makedirs(output_dir, exist_ok=True)
-    for old_f in os.listdir(output_dir):
-        if old_f.startswith("search_"):
-            try:
-                os.remove(os.path.join(output_dir, old_f))
-            except Exception:
-                pass
+    # 补充图放 search/ 子目录，和 get_images(..., 'search') 保持一致
+    search_dir = os.path.join(output_dir, "search")
+    os.makedirs(search_dir, exist_ok=True)
+    for old_f in os.listdir(search_dir):
+        try:
+            os.remove(os.path.join(search_dir, old_f))
+        except Exception:
+            pass
 
     final_paths = []
     for i, path in enumerate(clean[:max_images]):
-        dst = os.path.join(output_dir, "search_%02d.jpg" % (i + 1))
+        dst = os.path.join(search_dir, "search_%02d.jpg" % (i + 1))
         try:
             shutil.copy2(path, dst)
             final_paths.append(dst)
@@ -359,6 +359,108 @@ async def search_extra_images(product_image, output_dir, max_images=15):
 
     print(f"  补充图片: {len(final_paths)} 张")
     return final_paths, keyword
+
+
+async def collect_extra_images(product_image, keyword, output_dir, max_per_source=20):
+    """多源聚合补充图（独立功能，可以单独触发，不依赖主流程）
+
+    来源顺序：
+      1. 百度识图（以图搜图）—— 最准，能识别出商品名
+      2. 百度图片（关键词搜图）—— 量大，偶尔能拿到 800px 的图
+      3. 京东 / 拼多多 / 淘宝评价图 —— 实测都要登录 + 强反爬，拿不到
+
+    某个源失败不影响其他源，返回里带上每个源的状态和原因。
+
+    返回 {success, sources, total, summary, output_dir}
+    """
+    try:
+        import image_search
+    except ImportError:
+        return {'success': False, 'error': '搜图模块缺失（image_search.py）'}
+
+    print(f"\n{'='*60}")
+    print("补充图：多源聚合")
+    print(f"{'='*60}")
+
+    sources = await image_search.collect_all_sources(
+        product_image, keyword=keyword or '', max_per_source=max_per_source)
+
+    # 逐个源下载（只下状态为 ok 的）
+    os.makedirs(output_dir, exist_ok=True)
+    seen_sizes = set()      # 跨源去重
+    final_paths = []
+    src_summary = []
+
+    for r in sources:
+        if r['status'] != 'ok' or not r['images']:
+            src_summary.append(r)
+            continue
+
+        tmp_dir = os.path.join(output_dir, '_raw_' + r['source'])
+        paths = await image_search.download_images(r['images'], tmp_dir)
+        clean = image_search.dedupe_by_size(paths)
+
+        kept = []
+        for pth in clean:
+            try:
+                size = os.path.getsize(pth)
+            except Exception:
+                continue
+            if size in seen_sizes:
+                continue
+            seen_sizes.add(size)
+            kept.append(pth)
+
+        r['count'] = len(kept)
+        r['downloaded'] = kept
+        src_summary.append(r)
+        print(f"  {r['name']}: 抓到 {len(r['images'])} 条，下载去重后 {len(kept)} 张")
+
+    # 补充图统一放 search/ 子目录：get_images(output_dir, 'search') 读的是这里，
+    # 之前存在商品目录根下，前端读不到，列表一直是空的
+    search_dir = os.path.join(output_dir, 'search')
+    os.makedirs(search_dir, exist_ok=True)
+    for old_f in os.listdir(search_dir):
+        try:
+            os.remove(os.path.join(search_dir, old_f))
+        except Exception:
+            pass
+
+    # 按源的展示顺序统一编号
+    idx = 1
+    for r in src_summary:
+        for pth in r.get('downloaded', []):
+            dst = os.path.join(search_dir, 'search_%02d.jpg' % idx)
+            try:
+                shutil.copy2(pth, dst)
+                final_paths.append(dst)
+                idx += 1
+            except Exception:
+                pass
+
+    # 清理临时下载目录
+    for r in src_summary:
+        tmp = os.path.join(output_dir, '_raw_' + r['source'])
+        if os.path.isdir(tmp):
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    # 去掉内部字段再返回（downloaded 是本地路径，不需要给界面）
+    clean_sources = []
+    for r in src_summary:
+        item = {k: v for k, v in r.items() if k != 'downloaded'}
+        clean_sources.append(item)
+
+    summary = image_search.summarize_sources(clean_sources)
+    print(f"  汇总: {summary}")
+    print(f"  共保存 {len(final_paths)} 张到 {output_dir}")
+
+    return {
+        'success': True,
+        'sources': clean_sources,
+        'total': len(final_paths),
+        'summary': summary,
+        'output_dir': output_dir,
+    }
 
 
 def save_copies(copies, output_dir):

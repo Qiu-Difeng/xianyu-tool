@@ -664,3 +664,51 @@ body {
 .tab-btn-action:hover { color: var(--accent2); }
 
 .history-item .hi-btn-del:hover { border-color: var(--error); color: var(--error); }
+
+/* ============================================================
+   多源聚合搜图
+   ============================================================ */
+.ms-box {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+.ms-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ms-head b { color: var(--text); font-size: 13px; }
+.ms-hint { display: block; color: var(--text-faint); font-size: 11px; margin-top: 3px; }
+.ms-btn { white-space: nowrap; }
+.ms-btn:disabled { opacity: 0.6; cursor: default; }
+
+.ms-summary {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--panel-bg);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.ms-sources { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ms-src {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--field-bg);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ms-src .ico { flex-shrink: 0; }
+.ms-src-ok { color: var(--text); }
+.ms-src-ok .ico { color: var(--success); }
+.ms-src-failed .ico { color: var(--error); }
+.ms-src-unavailable .ico { color: var(--warn); }
+.ms-src-empty .ico, .ms-src-skipped .ico { color: var(--text-faint); }
+.ms-src .ms-name { font-weight: 600; min-width: 76px; }
+.ms-src .ms-status { color: var(--text-faint); min-width: 48px; }
+.ms-src .ms-count { color: var(--accent2); }
+.ms-src .ms-cost { color: var(--text-faint); font-size: 11px; }
+.ms-src .ms-msg { flex: 1; color: var(--text-faint); font-size: 11px;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.4.9'
+            return '1.5.0'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -296,6 +296,53 @@ class Api:
             return {'success': False, 'error': str(e)}
 
     # ============ 批量队列 ============
+    def collect_extra_images(self, output_dir, max_per_source=20, keyword=''):
+        """多源聚合搜补充图（独立运行，不需要先跑主流程之外的准备）"""
+        try:
+            from xianyu_tool import collect_extra_images
+            import asyncio as _aio
+
+            if not output_dir or not os.path.isdir(output_dir):
+                return {'success': False, 'error': '没有当前商品目录，先处理一条链接'}
+
+            # 取参考图和标题
+            ref_img = None
+            for sub in ('clean', 'original'):
+                d = os.path.join(output_dir, sub)
+                if os.path.isdir(d):
+                    cands = sorted(f for f in os.listdir(d)
+                                   if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')))
+                    if cands:
+                        ref_img = os.path.join(d, cands[0])
+                        break
+
+            if not keyword:
+                rj = os.path.join(output_dir, 'result.json')
+                if os.path.exists(rj):
+                    try:
+                        with open(rj, 'r', encoding='utf-8') as f:
+                            keyword = (json.load(f).get('title') or '').strip()
+                    except Exception:
+                        pass
+
+            if not ref_img and not keyword:
+                return {'success': False, 'error': '没有参考图也没有商品标题，无法搜图'}
+
+            loop = _aio.new_event_loop()
+            try:
+                _aio.set_event_loop(loop)
+                result = loop.run_until_complete(
+                    collect_extra_images(ref_img, keyword, output_dir,
+                                         max_per_source=int(max_per_source or 20)))
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+            return result
+        except Exception as e:
+            return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}
+
     def queue_add(self, text):
         """把多行文本里的链接加入队列"""
         try:

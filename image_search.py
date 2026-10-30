@@ -172,3 +172,240 @@ def dedupe_by_size(paths, min_kb=10):
         seen.add(size)
         out.append(p)
     return out
+
+# ============================================================
+# 来源 2：百度图片（关键词搜图）
+# ============================================================
+
+async def search_by_keyword(keyword, max_images=30, timeout=30):
+    """用关键词在百度图片搜图，返回图片 URL 列表
+
+    和 search_by_image 的区别：那个是以图搜图（要上传参考图，更精准），
+    这个是按文字搜（量大，但可能有不相关的）。两者互补。
+
+    不需要登录，也不需要 csrf。
+    """
+    if not keyword or not keyword.strip():
+        return []
+
+    from playwright.async_api import async_playwright
+    from urllib.parse import quote
+
+    urls = []
+    seen = set()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=['--disable-blink-features=AutomationControlled'])
+        try:
+            ctx = await browser.new_context(user_agent=UA, viewport={'width': 1440, 'height': 900})
+            page = await ctx.new_page()
+
+            search_url = 'https://image.baidu.com/search/index?tn=baiduimage&word=' + quote(keyword)
+            try:
+                await page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
+            except Exception:
+                pass
+            await asyncio.sleep(2.5)
+
+            # 滚两次触发懒加载
+            for _ in range(2):
+                try:
+                    await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                except Exception:
+                    pass
+                await asyncio.sleep(1.8)
+
+            try:
+                srcs = await page.eval_on_selector_all(
+                    'img',
+                    'els => els.map(e => e.src || e.getAttribute("data-imgurl") || "")')
+            except Exception:
+                srcs = []
+
+            for u in srcs:
+                if not u or not u.startswith('http'):
+                    continue
+                low = u.lower()
+                # 过滤站点图标、占位图
+                if any(k in low for k in ['logo', 'icon', '.svg', 'static', 'loading', 'blank']):
+                    continue
+                if len(u) < 30:
+                    continue
+                key = re.sub(r'[?&](w|h|fmt)=\w+', '', u)
+                if key in seen:
+                    continue
+                seen.add(key)
+                urls.append(u)
+                if len(urls) >= max_images:
+                    break
+        finally:
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+    return urls
+
+
+# ============================================================
+# 来源 3~5：电商平台买家评价图（实测不可用，保留尝试逻辑）
+# ============================================================
+
+PLATFORM_NOTES = {
+    'jd': '京东要求登录，商品页和评价接口都会拦（实测接口返回 444，浏览器只拿到登录页）',
+    'pdd': '拼多多有 anti_content 签名和 verifyAuthToken，且以图搜货只在 App 内有',
+    'taobao': '淘宝要登录态和 mtop 签名，网页版评价区不对外直出',
+}
+
+
+async def try_platform_review_images(platform, keyword, max_images=10, timeout=15):
+    """尝试从电商平台拿买家评价图
+
+    现状：三个平台都拿不到（要登录 + 强反爬），所以这里直接返回不可用，
+    并把原因带出去给界面展示。
+
+    保留这个函数是为了两件事：
+    1. 界面能明确告诉用户"这个源为什么没图"，而不是静默少几张
+    2. 以后哪个平台开放了（或者有合规的开放接口），只要改这里的实现
+
+    返回 {source, status, images, message}
+    """
+    name = {'jd': '京东', 'pdd': '拼多多', 'taobao': '淘宝'}.get(platform, platform)
+    return {
+        'source': platform,
+        'name': name,
+        'status': 'unavailable',
+        'images': [],
+        'message': PLATFORM_NOTES.get(platform, '暂不支持'),
+    }
+
+# ============================================================
+# 多源聚合
+# ============================================================
+
+# 展示顺序：先精准的（以图搜图），再量大的（关键词），最后是拿不到的
+SOURCE_ORDER = ['baidu_image', 'baidu_keyword', 'jd', 'pdd', 'taobao']
+
+SOURCE_LABELS = {
+    'baidu_image': '百度识图',
+    'baidu_keyword': '百度图片',
+    'jd': '京东评价图',
+    'pdd': '拼多多评价图',
+    'taobao': '淘宝评价图',
+}
+
+
+async def collect_all_sources(product_image, keyword='', max_per_source=20,
+                              include_platforms=True):
+    """按顺序从各个来源收图，某个源失败不影响其他源
+
+    返回列表，每项：
+      {source, name, status, images, message, cost}
+      status: ok / empty / failed / unavailable / skipped
+
+    调用方按返回顺序展示即可（已经按 SOURCE_ORDER 排好）。
+    """
+    results = []
+
+    # --- 源 1：百度识图（以图搜图）---
+    if product_image:
+        t0 = asyncio.get_event_loop().time()
+        try:
+            urls, detected = await search_by_image(product_image, max_images=max_per_source)
+            cost = asyncio.get_event_loop().time() - t0
+            if urls:
+                results.append({
+                    'source': 'baidu_image',
+                    'name': SOURCE_LABELS['baidu_image'],
+                    'status': 'ok',
+                    'images': urls,
+                    'message': ('识别为「%s」' % detected) if detected else '',
+                    'cost': round(cost, 1),
+                })
+                # 识图能识别出商品名，后面关键词搜图可以复用
+                if not keyword and detected:
+                    keyword = detected
+            else:
+                results.append({
+                    'source': 'baidu_image', 'name': SOURCE_LABELS['baidu_image'],
+                    'status': 'empty', 'images': [],
+                    'message': '没找到相似图（可能图片太小或太模糊）',
+                    'cost': round(cost, 1),
+                })
+        except Exception as e:
+            results.append({
+                'source': 'baidu_image', 'name': SOURCE_LABELS['baidu_image'],
+                'status': 'failed', 'images': [],
+                'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
+            })
+    else:
+        results.append({
+            'source': 'baidu_image', 'name': SOURCE_LABELS['baidu_image'],
+            'status': 'skipped', 'images': [],
+            'message': '没有参考图，跳过以图搜图', 'cost': 0,
+        })
+
+    # --- 源 2：百度图片（关键词）---
+    if keyword:
+        t0 = asyncio.get_event_loop().time()
+        try:
+            urls = await search_by_keyword(keyword, max_images=max_per_source)
+            cost = asyncio.get_event_loop().time() - t0
+            results.append({
+                'source': 'baidu_keyword',
+                'name': SOURCE_LABELS['baidu_keyword'],
+                'status': 'ok' if urls else 'empty',
+                'images': urls,
+                'message': ('按「%s」搜到' % keyword) if urls else '这个关键词没搜到图',
+                'cost': round(cost, 1),
+            })
+        except Exception as e:
+            results.append({
+                'source': 'baidu_keyword', 'name': SOURCE_LABELS['baidu_keyword'],
+                'status': 'failed', 'images': [],
+                'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
+            })
+    else:
+        results.append({
+            'source': 'baidu_keyword', 'name': SOURCE_LABELS['baidu_keyword'],
+            'status': 'skipped', 'images': [],
+            'message': '没有关键词（商品标题为空），跳过', 'cost': 0,
+        })
+
+    # --- 源 3~5：电商平台买家评价图 ---
+    if include_platforms:
+        for plat in ('jd', 'pdd', 'taobao'):
+            try:
+                r = await try_platform_review_images(plat, keyword, max_images=10)
+                r['cost'] = 0
+                results.append(r)
+            except Exception as e:
+                results.append({
+                    'source': plat, 'name': SOURCE_LABELS.get(plat, plat),
+                    'status': 'failed', 'images': [],
+                    'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
+                })
+
+    # 按预定义顺序稳定排序
+    order = {k: i for i, k in enumerate(SOURCE_ORDER)}
+    results.sort(key=lambda x: order.get(x['source'], 99))
+    return results
+
+
+def summarize_sources(results):
+    """把多源结果压成一句人话，给界面提示用"""
+    # count 是下载去重后的真实数量；没有 count 时才退回 URL 条数
+    ok_imgs = sum(r.get('count', len(r.get('images') or []))
+                  for r in results if r['status'] == 'ok')
+    ok_src = [r['name'] for r in results if r['status'] == 'ok']
+    bad = [r['name'] for r in results if r['status'] in ('failed', 'unavailable')]
+    parts = []
+    if ok_imgs:
+        parts.append('从 %s 收到 %d 张' % ('、'.join(ok_src), ok_imgs))
+    else:
+        parts.append('没能收到图片')
+    if bad:
+        parts.append('%s 不可用' % '、'.join(bad))
+    return '；'.join(parts)
