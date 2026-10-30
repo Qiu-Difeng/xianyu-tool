@@ -333,8 +333,9 @@ async def search_extra_images(product_image, output_dir, max_images=15):
     downloaded = await image_search.download_images(urls, search_dir)
     print(f"  下载成功 {len(downloaded)} 张")
 
-    clean = image_search.dedupe_by_size(downloaded)
-    print(f"  去重后 {len(clean)} 张")
+    clean = [x[0] if isinstance(x, (tuple, list)) else x
+             for x in image_search.dedupe_by_content(downloaded)]
+    print(f"  内容去重后 {len(clean)} 张")
 
     # 补充图放 search/ 子目录，和 get_images(..., 'search') 保持一致
     search_dir = os.path.join(output_dir, "search")
@@ -409,15 +410,17 @@ async def collect_extra_images(product_image, keyword, output_dir, max_per_sourc
 
         tmp_dir = os.path.join(output_dir, '_raw_' + r['source'])
         paths = await image_search.download_images(r['images'], tmp_dir)
-        clean = image_search.dedupe_by_size(paths)
+        # 按内容去重：同一张图不同尺寸也能认出来，可疑的文章截图排到后面
+        clean = image_search.dedupe_by_content(paths)
 
         kept = []
-        for pth in clean:
+        for item in clean:
+            pth = item[0] if isinstance(item, (tuple, list)) else item
             try:
                 size = os.path.getsize(pth)
             except Exception:
                 continue
-            if size in seen_sizes:
+            if size in seen_sizes:      # 跨源再去一次（不同源的同一张图）
                 continue
             seen_sizes.add(size)
             kept.append(pth)

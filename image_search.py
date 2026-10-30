@@ -155,6 +155,133 @@ async def download_images(urls, output_dir, timeout=15):
     return [p for p in results if p]
 
 
+def _dhash(path, size=8):
+    """算图片的 dHash（差值哈希），返回 64 位整数
+
+    做法：缩到 (size+1) x size 的灰度图，逐行比较相邻像素，
+    左 > 右 记 1，否则记 0。用这个判断"是不是同一张图"比文件大小可靠得多——
+    同一张图不同尺寸/不同压缩率，hash 几乎不变。
+    """
+    try:
+        from PIL import Image
+        im = Image.open(path).convert('L').resize((size + 1, size), Image.LANCZOS)
+    except Exception:
+        return None
+    px = list(im.getdata())
+    bits = 0
+    for row in range(size):
+        for col in range(size):
+            left = px[row * (size + 1) + col]
+            right = px[row * (size + 1) + col + 1]
+            bits = (bits << 1) | (1 if left > right else 0)
+    return bits
+
+
+def _hamming(a, b):
+    """两个 hash 有几位不一样"""
+    if a is None or b is None:
+        return 999
+    return bin(a ^ b).count('1')
+
+
+def screenshot_score(path):
+    """给"像不像文章截图"打分，0 = 完全不像，1 = 很像
+
+    为什么要打分而不是直接判断：纯白底的商品图和文字截图在颜色统计上
+    几乎重合（都是大面积白 + 低饱和），一刀切会误删好图。
+    这里只输出可疑程度，由调用方决定是丢弃还是排到后面。
+
+    三个特征：
+    - 顶部大块纯色（放标题的横幅）
+    - 颜色种类特别多（彩色标题栏 + 白底 + 图标，量化后 100+ 种）
+    - 平均饱和度极低（黑白文档）
+    """
+    try:
+        from PIL import Image
+        im = Image.open(path).convert('RGB')
+    except Exception:
+        return 0.0
+
+    w, h = im.size
+    if h < 80 or w < 80:
+        return 0.0
+
+    score = 0.0
+
+    # 1) 顶部 12% 的主色占比
+    band = im.crop((0, 0, w, max(20, int(h * 0.12)))).resize((60, 12), Image.LANCZOS)
+    px = list(band.getdata())
+    cnt = {}
+    for r, g, b in px:
+        k = (r // 32, g // 32, b // 32)
+        cnt[k] = cnt.get(k, 0) + 1
+    top_ratio = max(cnt.values()) / float(len(px)) if px else 0
+
+    # 2) 整图量化色数 + 平均饱和度
+    small = im.resize((80, 80), Image.LANCZOS)
+    colors = len(set((r // 32, g // 32, b // 32) for r, g, b in small.getdata()))
+    hsv_px = list(small.convert('HSV').getdata())
+    s_avg = sum(p[1] for p in hsv_px) / float(len(hsv_px)) if hsv_px else 0
+
+    # 顶部纯色 + 低饱和 = 像标题横幅
+    if top_ratio > 0.70 and s_avg < 12:
+        score += 0.5
+    # 颜色种类异常多（彩色标题栏那种）
+    if colors > 100:
+        score += 0.4
+    # 接近黑白的文档
+    if s_avg < 8:
+        score += 0.2
+
+    return min(1.0, score)
+
+
+def dedupe_by_content(paths, max_distance=6, min_width=200, drop_score=0.75):
+    """按图片内容去重，保留清晰度最高的那张
+
+    原来的 dedupe_by_size 只能挡掉"文件大小完全一样"的重复，
+    而搜索引擎返回同一张图经常是不同尺寸（500 宽 / 667 宽），大小不同就漏了。
+    换成 dHash 后，同一张图不管多大都能认出来。
+
+    同时按 screenshot_score 排序：可疑的文章截图排到最后，但**不删**——
+    因为纯白底的商品图也会被判可疑，删了会误伤。
+
+    返回 [(path, width, score)]，按"可用程度"从高到低排
+    """
+    if not paths:
+        return []
+
+    items = []
+    for pth in paths:
+        if not os.path.isfile(pth):
+            continue
+        try:
+            from PIL import Image
+            with Image.open(pth) as im:
+                w, h = im.size
+        except Exception:
+            continue
+        if w < min_width:
+            continue
+        sc = screenshot_score(pth)
+        if sc >= drop_score:      # 非常确定是截图的才丢
+            continue
+        items.append({'path': pth, 'w': w, 'px': w * h,
+                      'score': sc, 'hash': _dhash(pth)})
+
+    # 先按像素总量降序，去重时保留最清晰的那张
+    items.sort(key=lambda x: x['px'], reverse=True)
+    kept = []
+    for it in items:
+        if any(_hamming(it['hash'], k['hash']) <= max_distance for k in kept):
+            continue
+        kept.append(it)
+
+    # 再去掉重复后，按"截图可疑度"升序排（正常图在前）
+    kept.sort(key=lambda x: (x['score'], -x['px']))
+    return [(k['path'], k['w'], round(k['score'], 2)) for k in kept]
+
+
 def dedupe_by_size(paths, min_kb=10):
     """按文件大小粗略去重（同一张图不同 URL 常见）"""
     seen = set()
