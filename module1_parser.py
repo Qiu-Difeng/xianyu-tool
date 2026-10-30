@@ -300,8 +300,157 @@ async def wait_for_login(page, timeout=180):
 
 
 # ============================================================
+# 解析辅助：从 API 响应与 DOM 里提取字段
+# ============================================================
+
+def parse_api_body(api_body, current_item_id=""):
+    """把拦截到的商品详情 API 响应解析成字段字典
+
+    闲鱼返回的是 JSONP（`callback({...})`），也可能直接是 JSON，这里都兼容。
+    纯数据转换，不碰浏览器状态，可单独测试。
+
+    返回：{title, desc, price, item_id, image_urls, video_url, seller}
+    解析失败返回空字典。
+    """
+    if not api_body:
+        return {}
+
+    json_str = api_body
+    m = re.match(r'^[\w\.]+\((.+)\)$', api_body, re.DOTALL)
+    if m:
+        json_str = m.group(1)
+
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        return {}
+
+    out = {}
+
+    ret = data.get("ret", [""])[0]
+    if ret and "成功" not in ret and "SUCCESS" not in ret.upper():
+        print(f"  API ret: {ret}")
+
+    item_data = data.get("data", {}).get("itemDO", {})
+    if not item_data and "data" in data:
+        # 部分接口把 itemDO 藏在 data 的某一层里
+        for k, v in data["data"].items():
+            if isinstance(v, dict) and "title" in v:
+                item_data = v
+                break
+
+    if not item_data:
+        return {}
+
+    out["title"] = item_data.get("title", "")
+    out["desc"] = item_data.get("desc", "")
+    out["price"] = str(item_data.get("soldPrice", "") or item_data.get("price", "") or "")
+    out["item_id"] = str(item_data.get("itemId", current_item_id))
+
+    image_infos = item_data.get("imageInfos", [])
+    out["image_urls"] = [
+        _fix_img_url(img.get("url", ""))
+        for img in image_infos if isinstance(img, dict) and img.get("url")
+    ]
+    if not out["image_urls"] and "images" in item_data:
+        out["image_urls"] = [_fix_img_url(u) for u in item_data["images"] if u]
+
+    out["video_url"] = ""
+    for v in item_data.get("videoInfos", []) or []:
+        if isinstance(v, dict):
+            vurl = v.get("url", "") or v.get("videoUrl", "")
+            if vurl:
+                out["video_url"] = vurl
+                break
+    if not out["video_url"]:
+        out["video_url"] = item_data.get("videoUrl", "") or item_data.get("video", "")
+
+    seller_data = data.get("data", {}).get("sellerDO", {})
+    if seller_data:
+        out["seller"] = (seller_data.get("desensitizationNick", "")
+                         or seller_data.get("nick", ""))
+
+    return out
+
+
+async def fallback_title_from_dom(page, current_title):
+    """API 没给出标题时，从页面 DOM 兜底取一个
+
+    依次尝试 h1、class 含 title 的元素、og:title meta。
+    取到的文本太短或明显是错误页时跳过。
+    """
+    if current_title:
+        return current_title
+
+    for sel in ['h1', '[class*="title"]', '[class*="Title"]', 'meta[property="og:title"]']:
+        try:
+            el = await page.query_selector(sel)
+        except Exception:
+            continue
+        if not el:
+            continue
+        try:
+            text = (await el.get_attribute('content') if sel.startswith('meta')
+                    else (await el.inner_text()).strip())
+        except Exception:
+            continue
+        if text and len(text) > 3 and "页面不存在" not in text:
+            return text
+
+    return current_title or ""
+
+
+def match_captured_images(image_urls, captured_images):
+    """把图片 URL 和拦截到的二进制数据对上
+
+    闲鱼图片 URL 里带 O1CN0 开头的图 ID，用它做匹配。
+    返回 {url: bytes}，只包含对上的。
+    """
+    matched = {}
+    if not image_urls or not captured_images:
+        return matched
+
+    for img_url in image_urls:
+        m = re.search(r'(O1CN0\w+)', img_url)
+        if not m:
+            continue
+        img_id = m.group(1)
+        if img_id in captured_images:
+            matched[img_url] = captured_images[img_id]
+    return matched
+
+
+# ============================================================
 # 核心解析函数
 # ============================================================
+async def resolve_short_url(clean_url, item_id):
+    """把淘宝短链（tb.cn / t.cn）解析成完整商品链接
+
+    返回 (new_clean_url, new_item_id)。解析失败时原样返回输入，
+    让后续流程按"链接无效"处理。
+    """
+    if 'tb.cn' in clean_url or 't.cn' in clean_url:
+        print(f"  短链接，解析重定向中...")
+        import httpx
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
+                r = await c.get(clean_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                })
+                final_url = str(r.url)
+                print(f"    重定向到: {final_url[:80]}...")
+                mid = re.search(r'id=(\d+)', final_url)
+                if mid:
+                    return f"https://www.goofish.com/item?id={mid.group(1)}", mid.group(1)
+                return final_url, item_id
+        except Exception as e:
+            print(f"    重定向失败: {e}")
+            return clean_url, item_id
+    elif item_id:
+        return f"https://www.goofish.com/item?id={item_id}", item_id
+    return clean_url, item_id
+
+
 async def parse_xianyu(url, debug=False):
     """
     解析闲鱼商品链接（v2 扫码登录 + Cookie持久化）
@@ -328,26 +477,7 @@ async def parse_xianyu(url, debug=False):
     result["item_id"] = item_id or ""
 
     # 短链接重定向
-    if 'tb.cn' in clean_url or 't.cn' in clean_url:
-        print(f"  短链接，解析重定向中...")
-        import httpx
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
-                r = await c.get(clean_url, headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                })
-                final_url = str(r.url)
-                print(f"    重定向到: {final_url[:80]}...")
-                mid = re.search(r'id=(\d+)', final_url)
-                if mid:
-                    result["item_id"] = mid.group(1)
-                    clean_url = f"https://www.goofish.com/item?id={mid.group(1)}"
-                else:
-                    clean_url = final_url
-        except Exception as e:
-            print(f"    重定向失败: {e}")
-    elif item_id:
-        clean_url = f"https://www.goofish.com/item?id={item_id}"
+    clean_url, result["item_id"] = await resolve_short_url(clean_url, item_id)
 
     # 启动Playwright自带Chromium（独立数据目录）
     logged_in_before = is_logged_in()
@@ -621,78 +751,19 @@ async def parse_xianyu(url, debug=False):
 
     # === 解析API数据 ===
     if detail_api_body:
-        json_str = detail_api_body
-        m = re.match(r'^[\w\.]+\((.+)\)$', detail_api_body, re.DOTALL)
-        if m:
-            json_str = m.group(1)
-        try:
-            data = json.loads(json_str)
-            ret = data.get("ret", [""])[0]
-            if ret and "成功" not in ret and "SUCCESS" not in ret.upper():
-                print(f"  API ret: {ret}")
-
-            item_data = data.get("data", {}).get("itemDO", {})
-            if not item_data and "data" in data:
-                for k, v in data["data"].items():
-                    if isinstance(v, dict) and "title" in v:
-                        item_data = v
-                        break
-
-            if item_data:
-                result["title"] = item_data.get("title", "")
-                result["desc"] = item_data.get("desc", "")
-                result["price"] = str(item_data.get("soldPrice", "") or item_data.get("price", "") or "")
-                result["item_id"] = str(item_data.get("itemId", result["item_id"]))
-
-                image_infos = item_data.get("imageInfos", [])
-                result["image_urls"] = [
-                    _fix_img_url(img.get("url", ""))
-                    for img in image_infos if isinstance(img, dict) and img.get("url")
-                ]
-                if not result["image_urls"] and "images" in item_data:
-                    result["image_urls"] = [_fix_img_url(u) for u in item_data["images"] if u]
-
-                # 提取视频URL
-                video_infos = item_data.get("videoInfos", [])
-                if video_infos:
-                    for v in video_infos:
-                        if isinstance(v, dict):
-                            vurl = v.get("url", "") or v.get("videoUrl", "")
-                            if vurl:
-                                result["video_url"] = vurl
-                                break
-                if not result["video_url"]:
-                    result["video_url"] = item_data.get("videoUrl", "") or item_data.get("video", "")
-
-                seller_data = data.get("data", {}).get("sellerDO", {})
-                if seller_data:
-                    result["seller"] = seller_data.get("desensitizationNick", "") or seller_data.get("nick", "")
-
-                print(f"  [API] 标题={result['title'][:30]}, 价格={result['price']}, 图片={len(result['image_urls'])}张")
-                if result["video_url"]:
-                    print(f"  [API] 视频={result['video_url'][:60]}")
-        except json.JSONDecodeError:
-            pass
+        fields = parse_api_body(detail_api_body, result["item_id"])
+        if fields:
+            result.update(fields)
+            print(f"  [API] 标题={result['title'][:30]}, 价格={result['price']}, 图片={len(result['image_urls'])}张")
+            if result["video_url"]:
+                print(f"  [API] 视频={result['video_url'][:60]}")
 
     # === DOM兜底取标题 ===
-    if not result["title"]:
-        for sel in ['h1', '[class*="title"]', '[class*="Title"]', 'meta[property="og:title"]']:
-            el = await page.query_selector(sel)
-            if el:
-                text = (await el.get_attribute('content') if sel.startswith('meta')
-                        else (await el.inner_text()).strip())
-                if text and len(text) > 3 and "页面不存在" not in text:
-                    result["title"] = text
-                    break
+    result["title"] = await fallback_title_from_dom(page, result["title"])
 
     # === 匹配图片 ===
     if result["image_urls"]:
-        for img_url in result["image_urls"]:
-            m = re.search(r'(O1CN0\w+)', img_url)
-            if m:
-                img_id = m.group(1)
-                if img_id in captured_images:
-                    result["captured_images"][img_url] = captured_images[img_id]
+        result["captured_images"] = match_captured_images(result["image_urls"], captured_images)
         if debug:
             print(f"  [IMG] 拦截 {len(captured_images)}张, 匹配 {len(result['captured_images'])}张")
     elif captured_images:
