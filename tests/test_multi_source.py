@@ -166,7 +166,8 @@ def test_source_labels_complete():
 # ---------------- 平台登录检测 ----------------
 
 def test_platform_config_complete():
-    for plat in ('jd', 'taobao', 'pdd'):
+    # 淘宝和拼多多已从来源里移除，只剩京东
+    for plat in ('jd',):
         cfg = isr.PLATFORM_LOGIN[plat]
         for key in ('name', 'login_url', 'search', 'cookies'):
             assert key in cfg, '%s 缺少 %s' % (plat, key)
@@ -182,12 +183,6 @@ def test_platform_logged_in_by_cookie():
     assert isr.platform_logged_in(other, 'jd') is False
 
 
-def test_platform_logged_in_taobao():
-    assert isr.platform_logged_in([{'name': '_tb_token_'}], 'taobao') is True
-    assert isr.platform_logged_in([{'name': 'cookie2'}], 'taobao') is True
-    assert isr.platform_logged_in([{'name': 'x'}], 'taobao') is False
-
-
 def test_platform_logged_in_unknown():
     assert isr.platform_logged_in([{'name': 'thor'}], 'unknown_plat') is False
 
@@ -200,10 +195,11 @@ def test_platform_logged_in_empty():
 
 @pytest.mark.parametrize('plat', ['taobao', 'pdd'])
 def test_fetch_reviews_unsupported_platforms(plat):
-    """淘宝/拼多多已从来源里移除，直接调用也要返回不可用"""
+    """淘宝/拼多多已从来源和登录配置里移除，直接调用返回不可用"""
     r = run(isr.fetch_review_images(plat, '插排'))
     assert r['status'] == 'unavailable'
     assert r['images'] == []
+    assert '不支持' in r['message'] or '签名' in r['message']
 
 
 def test_fetch_reviews_no_keyword():

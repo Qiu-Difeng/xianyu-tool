@@ -452,20 +452,7 @@ PLATFORM_LOGIN = {
         # 京东登录成功的标志：thor（登录票据）或 pin（用户名）
         'cookies': ('thor', 'pin'),
     },
-    'taobao': {
-        'name': '淘宝',
-        'login_url': 'https://login.taobao.com/member/login.jhtml',
-        'home': 'https://www.taobao.com/',
-        'search': 'https://s.taobao.com/search?q={kw}',
-        'cookies': ('_tb_token_', 'cookie2', 'tracknick'),
-    },
-    'pdd': {
-        'name': '拼多多',
-        'login_url': 'https://mobile.yangkeduo.com/login.html',
-        'home': 'https://mobile.yangkeduo.com/',
-        'search': 'https://mobile.yangkeduo.com/search_result.html?search_key={kw}',
-        'cookies': ('pdd_user_id', 'api_uid', 'PDDAccessToken'),
-    },
+
 }
 
 
