@@ -16,7 +16,13 @@ UI = 'ui'
 OUT = 'gui_embed.html'
 
 # 注入顺序必须与拆分前一致：函数声明会提升，但顶层立即执行的代码有先后依赖
-INJECT_ORDER = ['style.css', 'base.js', 'llm.js', 'ui.js', 'queue.js', 'settings.js', 'history.js', 'dialogs.js', 'workflow.js']
+INJECT_ORDER = ['style.css', 'base.js', 'llm.js', 'ui.js', 'queue.js', 'settings.js',
+                 'history.js', 'dialogs.js',
+                 # workflow.js 放最前：它定义 _outputDir / MS_SOURCES 等全局状态，
+                 # 后面几个 workflow-*.js 只在函数体内引用这些变量，调用时已定义
+                 'workflow.js',
+                 'workflow-copy.js', 'workflow-image.js',
+                 'workflow-multisource.js', 'workflow-update.js']
 
 
 def read(name):

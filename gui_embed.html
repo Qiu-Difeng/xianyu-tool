@@ -1112,7 +1112,7 @@ body {
   </div>
 </div>
 
-<div class="footer">闲鱼辅助工具 v1.5.9 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" class="footer-link" onclick="showLogModal(); return false;">运行日志</a> · <a href="#" class="footer-link" onclick="showFeedback(); return false;">问题反馈</a> · <a href="#" class="footer-link" onclick="checkUpdate(true); return false;">检查更新</a></div>
+<div class="footer">闲鱼辅助工具 v1.6.0 · 后台静默采集 · 一键复制 · V3自定义提示词 · <a href="#" class="footer-link" onclick="showLogModal(); return false;">运行日志</a> · <a href="#" class="footer-link" onclick="showFeedback(); return false;">问题反馈</a> · <a href="#" class="footer-link" onclick="checkUpdate(true); return false;">检查更新</a></div>
 
 <script>
 /* 基础：HTML 转义、背景装饰（星空/雪花） */
@@ -2472,48 +2472,66 @@ function displayResult(result) {
   }
 }
 
-function renderImagesWithSave(imgs, subfolder) {
-  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-image"/></svg></span><p>无图片</p></div>';
-  let html = '<div class="img-toolbar"><span class="img-count">共 ' + imgs.length + ' 张</span>' +
-    '<button class="btn-save" onclick="saveImages(\'' + subfolder + '\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button></div>';
-  html += '<div class="img-grid">';
-  imgs.forEach((src, i) => {
-    html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
-      '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
-      '</div>';
-  });
-  return html + '</div>';
-}
-
-function renderSearchImages(imgs) {
-  return msBoxHtml() + '<div id="searchImgArea">' + searchImgAreaHtml(imgs) + '</div>';
-}
-
-function searchImgAreaHtml(imgs) {
-  if (!imgs || imgs.length === 0) {
-    return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-search"/></svg></span><p>还没有补充图，点上面的「开始搜图」</p></div>';
-  }
-  let html = '<div class="search-toolbar"><span class="img-count">共 ' + imgs.length + ' 张补充图</span>' +
-    '<button class="btn-save" onclick="saveImages(\'search\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button>' +
-    '<button class="btn-refresh" id="refreshSearchBtn" onclick="searchSupplementImages()"><span class="refresh-text"><svg class="ico"><use href="#i-refresh"/></svg> 重新搜索</span></button></div>';
-  html += '<div class="img-grid">';
-  imgs.forEach((src, i) => {
-    html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
-      '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
-      '</div>';
-  });
-  return html + '</div>';
-}
-
-function saveImages(subfolder) {
-  if (!_outputDir) return;
-  pywebview.api.save_images(_outputDir, subfolder).then(r => {
-    if (r.success) addLog('已保存 ' + r.saved + ' 个文件到所选目录', 'success');
-    else if (r.error !== '已取消') addLog('保存失败: ' + r.error, 'error');
-  });
-}
-
 let _copyPollTimer = null;
+
+// === 检查更新 ===
+let _updateChecking = false;
+
+// 启动时静默检查更新的回调
+window._onSilentUpdateCheck = function(result) {
+  if (result && result.has_update) {
+    // 检查是否已跳过该版本
+    if (isVersionSkipped(result.latest_version)) {
+      return; // 用户已跳过此版本，不提示
+    }
+    const dot = document.getElementById('updateDot');
+    const text = document.getElementById('updateBtnText');
+    dot.className = 'dot has-update';
+    text.textContent = '新版本 v' + result.latest_version;
+    // 静默模式下只在日志区域显示提示，不弹窗
+    addLog('发现新版本 v' + result.latest_version + '，点击右上角按钮查看详情', 'accent');
+  }
+};
+
+// 下载进度回调
+window._updateDownloadProgress = function(pct) {
+  const bar = document.getElementById('updateDownloadBar');
+  if (bar) {
+    bar.style.width = pct + '%';
+  }
+  const text = document.getElementById('updateDownloadPct');
+  if (text) {
+    text.textContent = pct + '%';
+  }
+};
+
+// 启动时自动检查更新（静默）
+window.addEventListener('pywebviewready', () => {
+  // Python端会在3秒后自动检查并通过_onSilentUpdateCheck回调通知
+  // 这里不需要额外调用，Python端已经处理了
+});
+
+
+// ===== 多源聚合搜图（独立触发）=====
+let _msRunning = false;
+
+// 来源配置：勾选 + 每个源抓多少张
+const MS_SOURCES = [
+  { key: 'baidu_image', label: '百度识图', def: 15, note: '以图搜图，按图片找同款' },
+];
+
+
+// ===== 电商平台评价图：登录状态与登录 =====
+
+
+// ===== 手动框选去水印 =====
+/**
+ * copy —— 从 workflow.js 拆出来的一块
+ *
+ * 函数实现原样搬过来，没改逻辑。全局状态（_outputDir 等）还在 workflow.js，
+ * 这里只是在函数体内引用，调用时已经定义，不受加载顺序影响。
+ */
+
 function startCopyPolling(outputDir) {
   if (_copyPollTimer) clearInterval(_copyPollTimer);
   let pollCount = 0;
@@ -2544,6 +2562,7 @@ function startCopyPolling(outputDir) {
   }, 3000); // 每3秒检查一次
 }
 
+
 function renderCopies(data) {
   if (!data.versions || data.versions.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-pen"/></svg></span><p>无文案</p></div>';
   let html = '<div class="copy-tabs">';
@@ -2559,6 +2578,7 @@ function renderCopies(data) {
   setTimeout(() => { switchCopy(0); }, 50);
   return html;
 }
+
 
 // 按当前版本渲染控制区
 function renderCopyControl(key) {
@@ -2629,6 +2649,7 @@ function renderCopyControl(key) {
   setTimeout(function () { loadPromptTemplates(key); }, 60);
 }
 
+
 // 收集 V1 的下拉选择，重新替换
 function applyV1Choices(randomize) {
   // randomize=true 时忽略下拉框，每个词随机选一个同义词
@@ -2654,6 +2675,7 @@ function applyV1Choices(randomize) {
   }).catch(function (e) { addLog('替换异常：' + e, 'error'); });
 }
 
+
 // V2 / V3 按各自提示词重写
 function customRewrite(key) {
   const el = document.getElementById(key + 'CustomPrompt');
@@ -2677,6 +2699,7 @@ function customRewrite(key) {
   }).catch(function (e) { addLog('重写异常：' + e, 'error'); });
 }
 
+
 function switchCopy(idx) {
   document.querySelectorAll('.copy-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const v = window._copies[idx];
@@ -2692,6 +2715,7 @@ function switchCopy(idx) {
   // 控制区跟着当前版本切换
   renderCopyControl(v.key);
 }
+
 
 function refreshCopy(idx) {
   if (!_outputDir || !window._copies) return;
@@ -2715,6 +2739,7 @@ function refreshCopy(idx) {
     refreshIcon.innerHTML = '<svg class="ico"><use href="#i-refresh"/></svg>';
   });
 }
+
 
 function copyText(idx) {
   if (!window._copies || !window._copies[idx]) return;
@@ -2743,6 +2768,7 @@ function copyText(idx) {
   addLog('复制失败，请手动选中文字复制', 'error');
 }
 
+
 function doCopyFallback(text) {
   try {
     const ta = document.createElement('textarea');
@@ -2763,327 +2789,6 @@ function doCopyFallback(text) {
   }
 }
 
-
-function downloadVideo() {
-  if (!_outputDir) return;
-  addLog('<svg class="ico"><use href="#i-download"/></svg> 正在下载视频...', 'accent');
-  pywebview.api.download_video(_outputDir).then(r => {
-    if (r.success) {
-      addLog('视频已保存: ' + r.path, 'success');
-    } else {
-      if (r.error !== '已取消') addLog('视频下载失败: ' + r.error, 'error');
-    }
-  });
-}
-
-function searchSupplementImages() {
-  // 统一走 collectMultiSource：来源和数量都由「多源聚合搜图」那块配置决定。
-  // 原来这里自己读 cfg.baidu_keyword.num 和 cfg.jd.num，这两个源已经删了，
-  // 一点「重新搜索」就抛 TypeError，按钮永远转圈。
-  if (!_outputDir) { setStatus('请先采集商品', 'error'); return; }
-  collectMultiSource();
-}
-
-// === 检查更新 ===
-let _updateChecking = false;
-
-function checkUpdate(manual) {
-  if (_updateChecking) return;
-  _updateChecking = true;
-
-  const btn = document.getElementById('updateBtn');
-  const dot = document.getElementById('updateDot');
-  const text = document.getElementById('updateBtnText');
-
-  btn.classList.add('checking');
-  dot.className = 'dot checking';
-  text.textContent = '检查中...';
-
-  pywebview.api.check_update().then(result => {
-    btn.classList.remove('checking');
-    _updateChecking = false;
-
-    if (result.error) {
-      dot.className = 'dot';
-      text.textContent = '检查更新';
-      if (manual) {
-        showUpdateModal({error: result.error});
-      }
-      return;
-    }
-
-    if (result.has_update) {
-      dot.className = 'dot has-update';
-      text.textContent = '新版本 v' + result.latest_version;
-      showUpdateModal(result);
-    } else {
-      dot.className = 'dot';
-      text.textContent = '检查更新';
-      if (manual) {
-        showUpdateModal({no_update: true, current: result.current_version});
-      }
-    }
-  }).catch(err => {
-    btn.classList.remove('checking');
-    _updateChecking = false;
-    dot.className = 'dot';
-    text.textContent = '检查更新';
-    if (manual) {
-      showUpdateModal({error: err.toString()});
-    }
-  });
-}
-
-// 启动时静默检查更新的回调
-window._onSilentUpdateCheck = function(result) {
-  if (result && result.has_update) {
-    // 检查是否已跳过该版本
-    if (isVersionSkipped(result.latest_version)) {
-      return; // 用户已跳过此版本，不提示
-    }
-    const dot = document.getElementById('updateDot');
-    const text = document.getElementById('updateBtnText');
-    dot.className = 'dot has-update';
-    text.textContent = '新版本 v' + result.latest_version;
-    // 静默模式下只在日志区域显示提示，不弹窗
-    addLog('发现新版本 v' + result.latest_version + '，点击右上角按钮查看详情', 'accent');
-  }
-};
-
-// 下载进度回调
-window._updateDownloadProgress = function(pct) {
-  const bar = document.getElementById('updateDownloadBar');
-  if (bar) {
-    bar.style.width = pct + '%';
-  }
-  const text = document.getElementById('updateDownloadPct');
-  if (text) {
-    text.textContent = pct + '%';
-  }
-};
-
-function showUpdateModal(info) {
-  // 三种状态（出错 / 已最新 / 有新版）共用同一套工厂骨架
-  if (info.error) {
-    Modal.open({
-      id: 'updateOverlay',
-      icon: 'i-globe',
-      title: '检查更新失败',
-      desc: '网络连接失败，请稍后重试',
-      body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(info.error) + '</p>',
-      actions: [{ text: '知道了', primary: true, onclick: () => Modal.close('updateOverlay') }],
-    });
-    return;
-  }
-
-  if (info.no_update) {
-    Modal.open({
-      id: 'updateOverlay',
-      icon: 'i-check',
-      title: '已是最新版本',
-      desc: '当前版本 v' + escapeHtml(info.current || '1.0') + '，无需更新',
-      actions: [{ text: '好的', primary: true, onclick: () => Modal.close('updateOverlay') }],
-    });
-    return;
-  }
-
-  const latest = String(info.latest_version || '');
-  const notes = info.release_notes || '';
-  const notesHtml = notes
-    ? '<div class="code-box" style="margin-bottom:16px;max-height:150px;overflow-y:auto;">' +
-      '<pre class="code-pre">' +
-      escapeHtml(notes) + '</pre></div>'
-    : '';
-
-  const body =
-    '<p class="modal-desc" style="color:var(--accent2);font-size:16px;font-weight:600;margin-bottom:4px;">v' + escapeHtml(latest) + '</p>' +
-    '<p class="modal-desc" style="font-size:12px;margin-bottom:16px;">当前版本 v' + escapeHtml(info.current_version) + '</p>' +
-    notesHtml +
-    '<div id="updateDownloadArea" style="margin-bottom:16px;">' +
-      '<div style="background:var(--panel-bg);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">' +
-        '<div id="updateDownloadBar" style="height:100%;width:0%;border-radius:8px;background:var(--accent-grad);transition:width 0.3s ease;"></div>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);">' +
-        '<span id="updateDownloadStatus">点击下方按钮开始下载</span>' +
-        '<span id="updateDownloadPct">0%</span>' +
-      '</div>' +
-    '</div>';
-
-  Modal.open({
-    id: 'updateOverlay',
-    icon: 'i-sparkle',
-    title: '发现新版本',
-    body: body,
-    actions: [
-      { text: '跳过此版本', onclick: () => skipUpdate(latest.replace(/[^0-9A-Za-z.]/g, '')) },
-      { text: '稍后', onclick: () => Modal.close('updateOverlay') },
-      { text: '<svg class="ico"><use href="#i-download"/></svg> 下载更新', primary: true, id: 'downloadUpdateBtn', onclick: downloadUpdate },
-    ],
-  });
-}
-
-function downloadUpdate() {
-  const btn = document.getElementById('downloadUpdateBtn');
-  const status = document.getElementById('updateDownloadStatus');
-  btn.disabled = true;
-  btn.textContent = '打开中...';
-  status.textContent = '正在打开浏览器...';
-
-  pywebview.api.download_update().then(result => {
-    if (result.success) {
-      status.textContent = '已打开浏览器下载';
-      btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已打开浏览器';
-
-      // 替换弹窗内容为提示
-      const overlay = document.getElementById('updateOverlay');
-      if (overlay) {
-        overlay.innerHTML = `
-          <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
-            <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-globe"/></svg></div>
-            <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已打开浏览器</h2>
-            <p style="color:var(--text-dim);font-size:13px;margin-bottom:8px;line-height:1.6;">浏览器正在下载安装包，下载完成后运行安装即可。</p>
-            <p style="color:var(--accent2);font-size:12px;margin-bottom:20px;">安装前请先关闭当前程序</p>
-            <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;width:100%;">知道了</button>
-          </div>
-        `;
-      }
-    } else {
-      status.textContent = '打开失败';
-      btn.disabled = false;
-      btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新尝试';
-      status.style.color = 'var(--error)';
-      status.textContent = '失败: ' + (result.error || '未知错误');
-    }
-  }).catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新下载';
-    status.style.color = 'var(--error)';
-    status.textContent = '失败: ' + err.toString();
-  });
-}
-
-function runInstaller(path) {
-  pywebview.api.open_file(path).then(r => {
-    if (r.success) {
-      addLog('已启动安装程序，请关闭当前程序后继续安装', 'accent');
-      document.getElementById('updateOverlay').remove();
-    } else {
-      addLog('启动安装程序失败: ' + r.error, 'error');
-    }
-  });
-}
-
-// 跳过此版本：记录到后端状态文件，不再提示
-function skipUpdate(version) {
-  patchUiState({ skip_version: version });
-  addLog('已跳过 v' + version + '，下次有更新仍会提示', 'accent');
-  const ov = document.getElementById('updateOverlay');
-  if (ov) ov.remove();
-}
-
-// 检查是否已跳过该版本
-function isVersionSkipped(version) {
-  return _uiState.skip_version === version;
-}
-
-// 启动时自动检查更新（静默）
-window.addEventListener('pywebviewready', () => {
-  // Python端会在3秒后自动检查并通过_onSilentUpdateCheck回调通知
-  // 这里不需要额外调用，Python端已经处理了
-});
-
-
-// ===== 提示词模板 =====
-function loadPromptTemplates(key) {
-  key = key || 'v3';
-  const box = document.getElementById(key + 'TplChips');
-  if (!box) return;
-  pywebview.api.list_prompt_templates().then(function (r) {
-    const items = (r && r.items) || [];
-    window._promptTemplates = items;
-    if (!items.length) {
-      box.innerHTML = '<span class="cp-empty">还没有保存的模板，写完提示词可点「存为模板」</span>';
-      return;
-    }
-    box.innerHTML = '<span class="cp-tip">常用模板：</span>' + items.map(function (it, i) {
-      return '<span class="cp-chip" data-i="' + i + '" onclick="usePromptTemplate(this.dataset.i, \'' + key + '\')" title="' +
-        escapeHtml(it.prompt) + '">' + escapeHtml(it.name) +
-        '<span class="cp-del" data-name="' + escapeHtml(it.name) +
-        '" onclick="event.stopPropagation();deletePromptTemplate(this.dataset.name)">×</span></span>';
-    }).join('');
-  }).catch(function () {});
-}
-
-function usePromptTemplate(idx, key) {
-  key = key || 'v3';
-  const items = window._promptTemplates || [];
-  const it = items[parseInt(idx, 10)];
-  if (!it) return;
-  const inp = document.getElementById(key + 'CustomPrompt');
-  if (inp) {
-    inp.value = it.prompt;
-    inp.focus();
-  }
-}
-
-function savePromptTemplate(key) {
-  key = key || 'v3';
-  const inp = document.getElementById(key + 'CustomPrompt');
-  const prompt = inp ? inp.value.trim() : '';
-  if (!prompt) {
-    addLog('先在输入框写下提示词，再点「存为模板」', 'warn');
-    return;
-  }
-  window._pendingPrompt = prompt;
-  window._pendingPromptKey = key;
-
-  Modal.open({
-    id: 'tplNameOverlay',
-    icon: 'i-download',
-    title: '保存为模板',
-    desc: '给这个提示词起个名字，下次可以一键套用',
-    body: '<input id="tplNameInput" class="modal-input" placeholder="例如：促销风" maxlength="20" />' +
-          '<p class="modal-note">将保存：' + escapeHtml(prompt.slice(0, 60)) +
-          (prompt.length > 60 ? '…' : '') + '</p>',
-    actions: [
-      { text: '取消', onclick: function () { Modal.close('tplNameOverlay'); } },
-      { text: '保存', primary: true, onclick: doSavePromptTemplate },
-    ],
-  });
-  setTimeout(function () {
-    const el = document.getElementById('tplNameInput');
-    if (el) el.focus();
-  }, 200);
-}
-
-function doSavePromptTemplate() {
-  const el = document.getElementById('tplNameInput');
-  const name = el ? el.value.trim() : '';
-  if (!name) {
-    addLog('请填写模板名称', 'warn');
-    return;
-  }
-  pywebview.api.save_prompt_template(name, window._pendingPrompt || '').then(function (r) {
-    if (!r || !r.success) {
-      addLog((r && r.error) || '保存失败', 'error');
-      return;
-    }
-    Modal.close('tplNameOverlay');
-    addLog('模板「' + name + '」已保存', 'success');
-    loadPromptTemplates(window._pendingPromptKey || 'v3');
-  }).catch(function (e) { addLog('保存异常：' + e, 'error'); });
-}
-
-function deletePromptTemplate(name) {
-  pywebview.api.delete_prompt_template(name).then(function (r) {
-    if (!r || !r.success) {
-      addLog((r && r.error) || '删除失败', 'error');
-      return;
-    }
-    addLog('模板「' + name + '」已删除', 'accent');
-    loadPromptTemplates();
-  }).catch(function () {});
-}
 
 
 // ===== 文案历史版本 =====
@@ -3107,6 +2812,7 @@ function showCopyHistory(idx) {
   });
   loadCopyHistory(v.key);
 }
+
 
 function loadCopyHistory(version) {
   const box = document.getElementById('copyHistoryList');
@@ -3144,6 +2850,7 @@ function loadCopyHistory(version) {
   });
 }
 
+
 function restoreHistory(i) {
   const items = window._histItems || [];
   const it = items[parseInt(i, 10)];
@@ -3167,6 +2874,7 @@ function restoreHistory(i) {
   }).catch(function (e) { addLog('恢复异常：' + e, 'error'); });
 }
 
+
 function deleteHistory(i) {
   const items = window._histItems || [];
   const it = items[parseInt(i, 10)];
@@ -3184,13 +2892,174 @@ function deleteHistory(i) {
 }
 
 
-// ===== 多源聚合搜图（独立触发）=====
-let _msRunning = false;
 
-// 来源配置：勾选 + 每个源抓多少张
-const MS_SOURCES = [
-  { key: 'baidu_image', label: '百度识图', def: 15, note: '以图搜图，按图片找同款' },
-];
+// ===== 提示词模板 =====
+function loadPromptTemplates(key) {
+  key = key || 'v3';
+  const box = document.getElementById(key + 'TplChips');
+  if (!box) return;
+  pywebview.api.list_prompt_templates().then(function (r) {
+    const items = (r && r.items) || [];
+    window._promptTemplates = items;
+    if (!items.length) {
+      box.innerHTML = '<span class="cp-empty">还没有保存的模板，写完提示词可点「存为模板」</span>';
+      return;
+    }
+    box.innerHTML = '<span class="cp-tip">常用模板：</span>' + items.map(function (it, i) {
+      return '<span class="cp-chip" data-i="' + i + '" onclick="usePromptTemplate(this.dataset.i, \'' + key + '\')" title="' +
+        escapeHtml(it.prompt) + '">' + escapeHtml(it.name) +
+        '<span class="cp-del" data-name="' + escapeHtml(it.name) +
+        '" onclick="event.stopPropagation();deletePromptTemplate(this.dataset.name)">×</span></span>';
+    }).join('');
+  }).catch(function () {});
+}
+
+
+function usePromptTemplate(idx, key) {
+  key = key || 'v3';
+  const items = window._promptTemplates || [];
+  const it = items[parseInt(idx, 10)];
+  if (!it) return;
+  const inp = document.getElementById(key + 'CustomPrompt');
+  if (inp) {
+    inp.value = it.prompt;
+    inp.focus();
+  }
+}
+
+
+function savePromptTemplate(key) {
+  key = key || 'v3';
+  const inp = document.getElementById(key + 'CustomPrompt');
+  const prompt = inp ? inp.value.trim() : '';
+  if (!prompt) {
+    addLog('先在输入框写下提示词，再点「存为模板」', 'warn');
+    return;
+  }
+  window._pendingPrompt = prompt;
+  window._pendingPromptKey = key;
+
+  Modal.open({
+    id: 'tplNameOverlay',
+    icon: 'i-download',
+    title: '保存为模板',
+    desc: '给这个提示词起个名字，下次可以一键套用',
+    body: '<input id="tplNameInput" class="modal-input" placeholder="例如：促销风" maxlength="20" />' +
+          '<p class="modal-note">将保存：' + escapeHtml(prompt.slice(0, 60)) +
+          (prompt.length > 60 ? '…' : '') + '</p>',
+    actions: [
+      { text: '取消', onclick: function () { Modal.close('tplNameOverlay'); } },
+      { text: '保存', primary: true, onclick: doSavePromptTemplate },
+    ],
+  });
+  setTimeout(function () {
+    const el = document.getElementById('tplNameInput');
+    if (el) el.focus();
+  }, 200);
+}
+
+
+function doSavePromptTemplate() {
+  const el = document.getElementById('tplNameInput');
+  const name = el ? el.value.trim() : '';
+  if (!name) {
+    addLog('请填写模板名称', 'warn');
+    return;
+  }
+  pywebview.api.save_prompt_template(name, window._pendingPrompt || '').then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '保存失败', 'error');
+      return;
+    }
+    Modal.close('tplNameOverlay');
+    addLog('模板「' + name + '」已保存', 'success');
+    loadPromptTemplates(window._pendingPromptKey || 'v3');
+  }).catch(function (e) { addLog('保存异常：' + e, 'error'); });
+}
+
+
+function deletePromptTemplate(name) {
+  pywebview.api.delete_prompt_template(name).then(function (r) {
+    if (!r || !r.success) {
+      addLog((r && r.error) || '删除失败', 'error');
+      return;
+    }
+    addLog('模板「' + name + '」已删除', 'accent');
+    loadPromptTemplates();
+  }).catch(function () {});
+}
+/**
+ * image —— 从 workflow.js 拆出来的一块
+ *
+ * 函数实现原样搬过来，没改逻辑。全局状态（_outputDir 等）还在 workflow.js，
+ * 这里只是在函数体内引用，调用时已经定义，不受加载顺序影响。
+ */
+
+
+function renderImagesWithSave(imgs, subfolder) {
+  if (!imgs || imgs.length === 0) return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-image"/></svg></span><p>无图片</p></div>';
+  let html = '<div class="img-toolbar"><span class="img-count">共 ' + imgs.length + ' 张</span>' +
+    '<button class="btn-save" onclick="saveImages(\'' + subfolder + '\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button></div>';
+  html += '<div class="img-grid">';
+  imgs.forEach((src, i) => {
+    html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
+      '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
+      '</div>';
+  });
+  return html + '</div>';
+}
+
+
+function renderSearchImages(imgs) {
+  return msBoxHtml() + '<div id="searchImgArea">' + searchImgAreaHtml(imgs) + '</div>';
+}
+
+
+function searchImgAreaHtml(imgs) {
+  if (!imgs || imgs.length === 0) {
+    return '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-search"/></svg></span><p>还没有补充图，点上面的「开始搜图」</p></div>';
+  }
+  let html = '<div class="search-toolbar"><span class="img-count">共 ' + imgs.length + ' 张补充图</span>' +
+    '<button class="btn-save" onclick="saveImages(\'search\')"><svg class="ico"><use href="#i-download"/></svg> 保存到...</button>' +
+    '<button class="btn-refresh" id="refreshSearchBtn" onclick="searchSupplementImages()"><span class="refresh-text"><svg class="ico"><use href="#i-refresh"/></svg> 重新搜索</span></button></div>';
+  html += '<div class="img-grid">';
+  imgs.forEach((src, i) => {
+    html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
+      '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
+      '</div>';
+  });
+  return html + '</div>';
+}
+
+
+function saveImages(subfolder) {
+  if (!_outputDir) return;
+  pywebview.api.save_images(_outputDir, subfolder).then(r => {
+    if (r.success) addLog('已保存 ' + r.saved + ' 个文件到所选目录', 'success');
+    else if (r.error !== '已取消') addLog('保存失败: ' + r.error, 'error');
+  });
+}
+
+
+
+function downloadVideo() {
+  if (!_outputDir) return;
+  addLog('<svg class="ico"><use href="#i-download"/></svg> 正在下载视频...', 'accent');
+  pywebview.api.download_video(_outputDir).then(r => {
+    if (r.success) {
+      addLog('视频已保存: ' + r.path, 'success');
+    } else {
+      if (r.error !== '已取消') addLog('视频下载失败: ' + r.error, 'error');
+    }
+  });
+}
+/**
+ * multisource —— 从 workflow.js 拆出来的一块
+ *
+ * 函数实现原样搬过来，没改逻辑。全局状态（_outputDir 等）还在 workflow.js，
+ * 这里只是在函数体内引用，调用时已经定义，不受加载顺序影响。
+ */
+
 
 function readMsCfg() {
   let saved = {};
@@ -3206,6 +3075,7 @@ function readMsCfg() {
   return cfg;
 }
 
+
 function saveMsCfg() {
   const cfg = {};
   MS_SOURCES.forEach(function (s) {
@@ -3219,6 +3089,7 @@ function saveMsCfg() {
   try { localStorage.setItem('msCfg', JSON.stringify(cfg)); } catch (e) {}
   return cfg;
 }
+
 
 function msCfgHtml() {
   const cfg = readMsCfg();
@@ -3237,6 +3108,7 @@ function msCfgHtml() {
   return html;
 }
 
+
 function msBoxHtml() {
   return '<div class="ms-box">' +
     '<div class="ms-head">' +
@@ -3249,6 +3121,7 @@ function msBoxHtml() {
     '<div id="msResult"></div>' +
   '</div>';
 }
+
 
 function collectMultiSource() {
   if (_msRunning) return;
@@ -3319,6 +3192,7 @@ function collectMultiSource() {
   });
 }
 
+
 function renderMsResult(r) {
   const box = document.getElementById('msResult');
   if (!box) return;
@@ -3348,11 +3222,196 @@ function renderMsResult(r) {
 }
 
 
-// ===== 电商平台评价图：登录状态与登录 =====
+function searchSupplementImages() {
+  // 统一走 collectMultiSource：来源和数量都由「多源聚合搜图」那块配置决定。
+  // 原来这里自己读 cfg.baidu_keyword.num 和 cfg.jd.num，这两个源已经删了，
+  // 一点「重新搜索」就抛 TypeError，按钮永远转圈。
+  if (!_outputDir) { setStatus('请先采集商品', 'error'); return; }
+  collectMultiSource();
+}
+/**
+ * update —— 从 workflow.js 拆出来的一块
+ *
+ * 函数实现原样搬过来，没改逻辑。全局状态（_outputDir 等）还在 workflow.js，
+ * 这里只是在函数体内引用，调用时已经定义，不受加载顺序影响。
+ */
 
 
+function checkUpdate(manual) {
+  if (_updateChecking) return;
+  _updateChecking = true;
 
-// ===== 手动框选去水印 =====
+  const btn = document.getElementById('updateBtn');
+  const dot = document.getElementById('updateDot');
+  const text = document.getElementById('updateBtnText');
+
+  btn.classList.add('checking');
+  dot.className = 'dot checking';
+  text.textContent = '检查中...';
+
+  pywebview.api.check_update().then(result => {
+    btn.classList.remove('checking');
+    _updateChecking = false;
+
+    if (result.error) {
+      dot.className = 'dot';
+      text.textContent = '检查更新';
+      if (manual) {
+        showUpdateModal({error: result.error});
+      }
+      return;
+    }
+
+    if (result.has_update) {
+      dot.className = 'dot has-update';
+      text.textContent = '新版本 v' + result.latest_version;
+      showUpdateModal(result);
+    } else {
+      dot.className = 'dot';
+      text.textContent = '检查更新';
+      if (manual) {
+        showUpdateModal({no_update: true, current: result.current_version});
+      }
+    }
+  }).catch(err => {
+    btn.classList.remove('checking');
+    _updateChecking = false;
+    dot.className = 'dot';
+    text.textContent = '检查更新';
+    if (manual) {
+      showUpdateModal({error: err.toString()});
+    }
+  });
+}
+
+
+function showUpdateModal(info) {
+  // 三种状态（出错 / 已最新 / 有新版）共用同一套工厂骨架
+  if (info.error) {
+    Modal.open({
+      id: 'updateOverlay',
+      icon: 'i-globe',
+      title: '检查更新失败',
+      desc: '网络连接失败，请稍后重试',
+      body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(info.error) + '</p>',
+      actions: [{ text: '知道了', primary: true, onclick: () => Modal.close('updateOverlay') }],
+    });
+    return;
+  }
+
+  if (info.no_update) {
+    Modal.open({
+      id: 'updateOverlay',
+      icon: 'i-check',
+      title: '已是最新版本',
+      desc: '当前版本 v' + escapeHtml(info.current || '1.0') + '，无需更新',
+      actions: [{ text: '好的', primary: true, onclick: () => Modal.close('updateOverlay') }],
+    });
+    return;
+  }
+
+  const latest = String(info.latest_version || '');
+  const notes = info.release_notes || '';
+  const notesHtml = notes
+    ? '<div class="code-box" style="margin-bottom:16px;max-height:150px;overflow-y:auto;">' +
+      '<pre class="code-pre">' +
+      escapeHtml(notes) + '</pre></div>'
+    : '';
+
+  const body =
+    '<p class="modal-desc" style="color:var(--accent2);font-size:16px;font-weight:600;margin-bottom:4px;">v' + escapeHtml(latest) + '</p>' +
+    '<p class="modal-desc" style="font-size:12px;margin-bottom:16px;">当前版本 v' + escapeHtml(info.current_version) + '</p>' +
+    notesHtml +
+    '<div id="updateDownloadArea" style="margin-bottom:16px;">' +
+      '<div style="background:var(--panel-bg);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px;">' +
+        '<div id="updateDownloadBar" style="height:100%;width:0%;border-radius:8px;background:var(--accent-grad);transition:width 0.3s ease;"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);">' +
+        '<span id="updateDownloadStatus">点击下方按钮开始下载</span>' +
+        '<span id="updateDownloadPct">0%</span>' +
+      '</div>' +
+    '</div>';
+
+  Modal.open({
+    id: 'updateOverlay',
+    icon: 'i-sparkle',
+    title: '发现新版本',
+    body: body,
+    actions: [
+      { text: '跳过此版本', onclick: () => skipUpdate(latest.replace(/[^0-9A-Za-z.]/g, '')) },
+      { text: '稍后', onclick: () => Modal.close('updateOverlay') },
+      { text: '<svg class="ico"><use href="#i-download"/></svg> 下载更新', primary: true, id: 'downloadUpdateBtn', onclick: downloadUpdate },
+    ],
+  });
+}
+
+
+function downloadUpdate() {
+  const btn = document.getElementById('downloadUpdateBtn');
+  const status = document.getElementById('updateDownloadStatus');
+  btn.disabled = true;
+  btn.textContent = '打开中...';
+  status.textContent = '正在打开浏览器...';
+
+  pywebview.api.download_update().then(result => {
+    if (result.success) {
+      status.textContent = '已打开浏览器下载';
+      btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已打开浏览器';
+
+      // 替换弹窗内容为提示
+      const overlay = document.getElementById('updateOverlay');
+      if (overlay) {
+        overlay.innerHTML = `
+          <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:30px;max-width:440px;width:90%;box-shadow:var(--shadow);animation:fadeInUp 0.4s ease;text-align:center;">
+            <div style="font-size:44px;margin-bottom:14px;"><svg class="ico"><use href="#i-globe"/></svg></div>
+            <h2 style="color:var(--text);margin-bottom:8px;font-size:20px;">已打开浏览器</h2>
+            <p style="color:var(--text-dim);font-size:13px;margin-bottom:8px;line-height:1.6;">浏览器正在下载安装包，下载完成后运行安装即可。</p>
+            <p style="color:var(--accent2);font-size:12px;margin-bottom:20px;">安装前请先关闭当前程序</p>
+            <button onclick="document.getElementById('updateOverlay').remove()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;width:100%;">知道了</button>
+          </div>
+        `;
+      }
+    } else {
+      status.textContent = '打开失败';
+      btn.disabled = false;
+      btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新尝试';
+      status.style.color = 'var(--error)';
+      status.textContent = '失败: ' + (result.error || '未知错误');
+    }
+  }).catch(err => {
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="ico"><use href="#i-download"/></svg> 重新下载';
+    status.style.color = 'var(--error)';
+    status.textContent = '失败: ' + err.toString();
+  });
+}
+
+
+function runInstaller(path) {
+  pywebview.api.open_file(path).then(r => {
+    if (r.success) {
+      addLog('已启动安装程序，请关闭当前程序后继续安装', 'accent');
+      document.getElementById('updateOverlay').remove();
+    } else {
+      addLog('启动安装程序失败: ' + r.error, 'error');
+    }
+  });
+}
+
+
+// 跳过此版本：记录到后端状态文件，不再提示
+function skipUpdate(version) {
+  patchUiState({ skip_version: version });
+  addLog('已跳过 v' + version + '，下次有更新仍会提示', 'accent');
+  const ov = document.getElementById('updateOverlay');
+  if (ov) ov.remove();
+}
+
+
+// 检查是否已跳过该版本
+function isVersionSkipped(version) {
+  return _uiState.skip_version === version;
+}
 </script>
 </body>
 </html>
