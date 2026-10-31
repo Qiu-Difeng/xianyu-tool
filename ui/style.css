@@ -782,3 +782,24 @@ body {
 }
 .ms-cfg-num:focus { outline: none; border-color: var(--accent2); }
 .ms-cfg-unit { color: var(--text-faint); font-size: 11px; margin-right: 4px; }
+
+/* 搜图关键词输入行 */
+.ms-kw {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ms-kw-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  background: var(--field-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+.ms-kw-input:focus { outline: none; border-color: var(--accent2); }
+.ms-kw-hint { color: var(--text-faint); font-size: 11px; }

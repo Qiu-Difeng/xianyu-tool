@@ -765,6 +765,7 @@ function deleteHistory(i) {
 
 // ===== 多源聚合搜图（独立触发）=====
 let _msRunning = false;
+let _msKeyword = '';
 
 // 来源配置：勾选 + 每个源抓多少张
 const MS_SOURCES = [
@@ -803,7 +804,16 @@ function saveMsCfg() {
 
 function msCfgHtml() {
   const cfg = readMsCfg();
-  let html = '<div class="ms-cfg"><span class="ms-cfg-t">来源</span>';
+  // 关键词单独一行：京东/百度图片都靠它搜，填得越准结果越贴近同款。
+  // 默认用商品标题（识图识别出的名字更短更准），用户可以改。
+  let html = '<div class="ms-kw">' +
+    '<span class="ms-cfg-t">搜图词</span>' +
+    '<input type="text" id="msKeyword" class="ms-kw-input" placeholder="留空则用商品标题" ' +
+      'value="' + escapeHtml(_msKeyword || '') + '" oninput="_msKeyword=this.value" />' +
+    '<span class="ms-kw-hint">填「白色小米插排」比填「插排」精准得多</span>' +
+    '</div>';
+
+  html += '<div class="ms-cfg"><span class="ms-cfg-t">来源</span>';
   MS_SOURCES.forEach(function (s) {
     const c = cfg[s.key];
     html += '<label class="ms-cfg-item" title="' + escapeHtml(s.note) + '">' +
@@ -872,7 +882,9 @@ function collectMultiSource() {
   }
   addLog('开始搜图：' + srcNames + '，目标 ' + totalWanted + ' 张', 'accent');
 
-  pywebview.api.collect_extra_images(_outputDir, picked.map(function (s) { return s.key; }), maxMap)
+  const kw = (document.getElementById('msKeyword') || {}).value || '';
+  pywebview.api.collect_extra_images(_outputDir, picked.map(function (s) { return s.key; }),
+                                     maxMap, kw.trim())
     .then(function (r) {
     _msRunning = false;
     if (btn) {
