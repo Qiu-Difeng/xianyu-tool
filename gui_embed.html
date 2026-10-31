@@ -2415,9 +2415,10 @@ function displayResult(result) {
   // 文案 - 先显示生成中，轮询检查状态
   document.getElementById('pane3').innerHTML = '<div class="empty"><span class="emoji spinning"><svg class="ico"><use href="#i-pen"/></svg></span><p>文案后台生成中，预计30-60秒...</p></div>';
   startCopyPolling(result.output_dir);
-  // 补充图
-  document.getElementById('pane4').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-search"/></svg></span><p>点击下方按钮搜索补充图</p>' +
-    '<button class="btn-refresh" id="searchSupplementBtn" onclick="searchSupplementImages()" style="margin-top:12px;"><svg class="ico"><use href="#i-search"/></svg> 搜索补充图</button></div>';
+  // 补充图：直接用新版搜图区（带来源配置 + 按钮）。
+  // 原来这里塞的是旧版空状态，一个孤零零的按钮挂在左边、提示还写着「点击下方按钮」，
+  // 和新版 pane4 的布局对不上，看着别扭。
+  document.getElementById('pane4').innerHTML = renderSearchImages([]);
   // 视频
   if (result.video_url) {
     document.getElementById('pane5').innerHTML = '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span><p>该商品有视频</p>' +
@@ -2640,24 +2641,11 @@ function downloadVideo() {
 }
 
 function searchSupplementImages() {
+  // 统一走 collectMultiSource：来源和数量都由「多源聚合搜图」那块配置决定。
+  // 原来这里自己读 cfg.baidu_keyword.num 和 cfg.jd.num，这两个源已经删了，
+  // 一点「重新搜索」就抛 TypeError，按钮永远转圈。
   if (!_outputDir) { setStatus('请先采集商品', 'error'); return; }
-  const cfg = readMsCfg();
-  const maxImg = cfg.baidu_image.num + cfg.baidu_keyword.num + cfg.jd.num;
-  const btn = document.getElementById('searchSupplementBtn');
-  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
-  addLog('开始搜索补充图（最多' + maxImg + '张）...', 'accent');
-
-  pywebview.api.refresh_search(_outputDir, maxImg).then(r => {
-    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
-    if (r.success) {
-      addLog('搜到 ' + r.count + ' 张补充图', 'success');
-      pywebview.api.get_images(_outputDir, 'search').then(imgs => {
-        document.getElementById('pane4').innerHTML = renderSearchImages(imgs);
-      });
-    } else {
-      addLog('搜索失败: ' + r.error, 'error');
-    }
-  });
+  collectMultiSource();
 }
 
 // === 检查更新 ===

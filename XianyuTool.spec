@@ -45,8 +45,12 @@ a = Analysis(
     # 项目内的模块必须显式列出来：它们在代码里是函数内 import（延迟导入，
     # 避免模块缺失时整个程序起不来），PyInstaller 的静态分析扫不到，
     # 结果就是打包版里没有这些模块，运行时才报 ImportError。
+    # 注意不要加 simple_lama_inpainting：它依赖 torch，
+    # PyInstaller 会把 torch 整个打进来，包体从 98MB 涨到 1GB 以上，
+    # 打包时间也从 2 分钟变成十几分钟。去水印入口已经下掉了，
+    # watermark_cleaner.get_lama() 拿不到会自己降级用 OpenCV，不影响主流程。
     hiddenimports=['playwright.async_api', 'anti_detect', 'watermark_cleaner',
-                   'simple_lama_inpainting', 'certifi',
+                   'certifi',
                    'llm_provider', 'image_search', 'task_queue',
                    'module1_parser', 'module3_copywriter', 'app_logger'],
     hookspath=[],
@@ -60,7 +64,9 @@ a = Analysis(
     excludes=['matplotlib', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6',
               'jedi', 'IPython', 'ipykernel', 'notebook',
               'jupyter', 'jupyter_client', 'jupyter_core',
-              'nbformat', 'nbconvert', 'Pythonwin', 'win32ui'],
+              'nbformat', 'nbconvert', 'Pythonwin', 'win32ui',
+              # torch 只被 simple_lama 用，去水印入口下线了，别打进包里
+              'torch', 'torchvision', 'simple_lama_inpainting'],
     noarchive=False,
     optimize=0,
 )
