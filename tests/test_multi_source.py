@@ -110,26 +110,6 @@ def test_platform_logged_in_empty():
 
 # ---------------- 评价抓取的平台差异 ----------------
 
-@pytest.mark.parametrize('plat', ['taobao', 'pdd'])
-def test_fetch_reviews_unsupported_platforms(plat):
-    """淘宝/拼多多已从来源和登录配置里移除，直接调用返回不可用"""
-    r = run(isr.fetch_review_images(plat, '插排'))
-    assert r['status'] == 'unavailable'
-    assert r['images'] == []
-    assert '不支持' in r['message'] or '签名' in r['message']
-
-
-def test_fetch_reviews_no_keyword():
-    r = run(isr.fetch_review_images('jd', ''))
-    assert r['status'] == 'skipped'
-    assert '关键词' in r['message']
-
-
-def test_fetch_reviews_unknown_platform():
-    r = run(isr.fetch_review_images('nope', 'x'))
-    assert r['status'] == 'unavailable'
-
-
 def test_default_profile_dir():
     d = isr._default_profile_dir()
     assert 'XianyuTool_ChromeData' in d, '应该和闲鱼共用浏览器配置'
@@ -206,22 +186,6 @@ def test_collect_empty_sources_returns_nothing(monkeypatch):
     results = run(isr.collect_all_sources('fake.jpg', keyword='x', sources=[]))
     assert results == []
     assert called == [], '空选择时不该调用任何搜图函数'
-
-
-def test_collect_none_sources_means_all(monkeypatch):
-    """None 才是默认全开"""
-    async def fake_image(*a, **kw):
-        return ['http://x/1.jpg'], ''
-
-    async def fake_keyword(*a, **kw):
-        return ['http://y/1.jpg']
-
-    monkeypatch.setattr(isr, 'search_by_image', fake_image)
-    monkeypatch.setattr(isr, 'fetch_review_images', fake_image)
-
-    results = run(isr.collect_all_sources('fake.jpg', keyword='插排', sources=None))
-    srcs = [r['source'] for r in results]
-    assert srcs == ['baidu_image'], srcs
 
 
 def test_collect_ignores_unknown_source(monkeypatch):

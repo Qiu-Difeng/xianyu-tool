@@ -301,6 +301,10 @@ def process_single_image(img_path, output_path, reference_image=None):
 
 def check_watermark(img_path):
     """快速检测单张图片是否有水印（用于批量预筛）"""
+    # 文件不存在要提前返回，不能一路走到 _img_to_base64 抛 FileNotFoundError，
+    # 那样批量预筛遇到一张坏图就会整批中断
+    if not img_path or not os.path.isfile(img_path):
+        return None
     llm = _get_vision_llm()
     if llm is None:
         print("  ⚠ 未配置视觉模型，跳过水印检测")
