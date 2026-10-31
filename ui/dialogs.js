@@ -47,7 +47,10 @@ function copyLog() {
     addLog('日志内容为空，暂无可复制的内容', 'warn');
     return;
   }
-  if (navigator.clipboard) {
+  // webview 里 navigator.clipboard 不存在，优先走 execCommand
+  if (window.doCopyFallback && doCopyFallback(window._logText)) {
+    addLog('日志已复制', 'success');
+  } else if (navigator.clipboard) {
     navigator.clipboard.writeText(window._logText).then(function () {
       addLog('日志已复制到剪贴板，可直接粘贴发送', 'success');
     }).catch(function () {
@@ -195,7 +198,10 @@ function submitFeedback() {
 
 function copyFeedbackText() {
   const text = window._feedbackText || '';
-  if (navigator.clipboard) {
+  // webview 里 navigator.clipboard 不存在，优先走 execCommand
+  if (window.doCopyFallback && doCopyFallback(text)) {
+    addLog('已复制反馈内容', 'success');
+  } else if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
       const btn = document.getElementById('copyFbBtn');
       btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> 已复制，发邮件给卖家';

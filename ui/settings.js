@@ -38,7 +38,10 @@ function showConfigExport() {
 function copyConfig() {
   const text = window._exportJson || '';
   if (!text) { addLog('配置还没生成完，请稍候', 'warn'); return; }
-  if (navigator.clipboard) {
+  // webview 里 navigator.clipboard 不存在，优先走 execCommand
+  if (window.doCopyFallback && doCopyFallback(text)) {
+    addLog('已复制到剪贴板', 'success');
+  } else if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(function () {
       addLog('配置已复制，请妥善保存', 'success');
     }).catch(function () {

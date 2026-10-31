@@ -313,22 +313,50 @@ function refreshCopy(idx) {
 }
 
 function copyText(idx) {
-  if (!window._copies) return;
+  if (!window._copies || !window._copies[idx]) return;
   const text = window._copies[idx].text;
   const title = window._copies[idx].label;
-  // 用clipboard API
-  navigator.clipboard.writeText(text).then(() => {
-    addLog('已复制 ' + title + ' (' + text.length + '字)', 'success');
-  }).catch(() => {
-    // fallback
+
+  // webview 不是安全上下文（isSecureContext=false），navigator.clipboard 压根不存在。
+  // 原来先调 clipboard.writeText，那行直接抛 TypeError，.then/.catch 都不会跑，
+  // 结果就是点了复制什么都没发生、也没有任何提示。
+  // 所以直接用 execCommand，它在 webview 里是有效的。
+  if (doCopyFallback(text)) {
+    addLog('已复制 ' + title + ' (' + text.length + ' 字)', 'success');
+    return;
+  }
+
+  // 万一 execCommand 也不行，再试 clipboard API（某些环境可能有）
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      addLog('已复制 ' + title + ' (' + text.length + ' 字)', 'success');
+    }).catch(function (e) {
+      addLog('复制失败：' + e + '，请手动选中文字复制', 'error');
+    });
+    return;
+  }
+
+  addLog('复制失败，请手动选中文字复制', 'error');
+}
+
+function doCopyFallback(text) {
+  try {
     const ta = document.createElement('textarea');
     ta.value = text;
+    // 放到屏幕外，避免页面跳动
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
     document.body.appendChild(ta);
+    ta.focus();
     ta.select();
-    document.execCommand('copy');
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
     document.body.removeChild(ta);
-    addLog('已复制 ' + title, 'success');
-  });
+    return !!ok;
+  } catch (e) {
+    return false;
+  }
 }
 
 function v3CustomRewrite() {
