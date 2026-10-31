@@ -172,16 +172,12 @@ function renderImagesWithSave(imgs, subfolder) {
   imgs.forEach((src, i) => {
     html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
       '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
-      '<button class="img-wm-btn" data-src="' + escapeHtml(src) + '" ' +
-        'onclick="openWmPicker(this.dataset.src)" title="框选水印区域并去除">去水印</button>' +
       '</div>';
   });
   return html + '</div>';
 }
 
 function renderSearchImages(imgs) {
-  // 配置区里京东那格要异步查登录态，渲染完稍等一下再填
-  setTimeout(loadPlatformStatus, 80);
   return msBoxHtml() + '<div id="searchImgArea">' + searchImgAreaHtml(imgs) + '</div>';
 }
 
@@ -194,11 +190,8 @@ function searchImgAreaHtml(imgs) {
     '<button class="btn-refresh" id="refreshSearchBtn" onclick="searchSupplementImages()"><span class="refresh-text"><svg class="ico"><use href="#i-refresh"/></svg> 重新搜索</span></button></div>';
   html += '<div class="img-grid">';
   imgs.forEach((src, i) => {
-    // 补充图卡片带「去水印」按钮：京东评价图带红色水印，需要用户框选后修掉
     html += '<div class="img-card" style="animation-delay:' + (i * 0.06) + 's">' +
       '<img src="' + escapeHtml(src) + '" loading="lazy" />' +
-      '<button class="img-wm-btn" data-src="' + escapeHtml(src) + '" ' +
-        'onclick="openWmPicker(this.dataset.src)" title="框选水印区域并去除">去水印</button>' +
       '</div>';
   });
   return html + '</div>';
@@ -780,7 +773,6 @@ let _msKeyword = '';
 const MS_SOURCES = [
   { key: 'baidu_image',   label: '百度识图',   def: 15, note: '以图搜图，最准' },
   { key: 'baidu_keyword', label: '百度图片',   def: 15, note: '按标题搜，量大' },
-  { key: 'jd',            label: '京东评价图', def: 10, note: '买家实拍，需登录' },
 ];
 
 function readMsCfg() {
@@ -813,7 +805,7 @@ function saveMsCfg() {
 
 function msCfgHtml() {
   const cfg = readMsCfg();
-  // 关键词单独一行：京东/百度图片都靠它搜，填得越准结果越贴近同款。
+  // 关键词单独一行：百度图片靠它搜，填得越准结果越贴近同款。
   // 默认用商品标题（识图识别出的名字更短更准），用户可以改。
   let html = '<div class="ms-kw">' +
     '<span class="ms-cfg-t">搜图词</span>' +
@@ -832,10 +824,6 @@ function msCfgHtml() {
       '<input type="number" class="ms-cfg-num" id="num_' + s.key + '" value="' + c.num +
       '" min="1" max="50" onchange="saveMsCfg()" />' +
       '<span class="ms-cfg-unit">张</span>';
-    // 京东需要登录才能抓评价图，状态紧跟在它后面
-    if (s.key === 'jd') {
-      html += '<span id="jdLoginSlot" class="jd-slot"></span>';
-    }
   });
   html += '</div>';
   return html;
@@ -953,55 +941,7 @@ function renderMsResult(r) {
 
 
 // ===== 电商平台评价图：登录状态与登录 =====
-function loadPlatformStatus() {
-  const slot = document.getElementById('jdLoginSlot');
-  if (!slot) return;
-  slot.innerHTML = '<span class="ms-plat-hint">读取登录状态…</span>';
 
-  pywebview.api.platform_login_status().then(function (r) {
-    if (!r || !r.success) {
-      slot.innerHTML = '<span class="ms-plat-hint">状态读取失败</span>';
-      return;
-    }
-    // 只关心京东，其他平台已经从来源里移除了
-    const jd = (r.platforms || []).filter(function (p) { return p.platform === 'jd'; })[0];
-    if (!jd) {
-      slot.innerHTML = '';
-      return;
-    }
-    if (jd.logged_in) {
-      slot.innerHTML = '<span class="ms-plat ms-plat-ok">' +
-        '<svg class="ico"><use href="#i-check"/></svg> 已登录</span>';
-    } else {
-      slot.innerHTML = '<button class="ms-plat ms-plat-login" data-p="jd"' +
-        ' onclick="loginPlatform(this.dataset.p)">' +
-        '<svg class="ico"><use href="#i-key"/></svg> 登录京东</button>';
-    }
-  }).catch(function () {
-    slot.innerHTML = '<span class="ms-plat-hint">状态读取失败</span>';
-  });
-}
-
-function loginPlatform(platform) {
-  const btn = document.querySelector('.ms-plat-login[data-p="' + platform + '"]');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<svg class="ico spin-ico"><use href="#i-loader"/></svg> 等待登录…';
-  }
-  addLog('已打开登录窗口，请在浏览器里完成登录（最多等 4 分钟）', 'accent');
-
-  pywebview.api.login_platform(platform).then(function (r) {
-    if (!r || !r.success) {
-      addLog('登录未完成：' + ((r && r.error) || '未知原因'), 'warn');
-    } else {
-      addLog(r.message || '登录成功', 'success');
-    }
-    loadPlatformStatus();
-  }).catch(function (e) {
-    addLog('登录异常：' + e, 'error');
-    loadPlatformStatus();
-  });
-}
 
 
 // ===== 手动框选去水印 =====

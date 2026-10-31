@@ -384,21 +384,24 @@ async def search_by_keyword(keyword, max_images=30, timeout=30):
 # 多源聚合
 # ============================================================
 
-# 只保留三个可用/可登录的来源。拼多多和淘宝的评价接口要 mtop sign /
-# anti_content 签名，登录态只是必要条件，做不通所以先移除。
-SOURCE_ORDER = ['baidu_image', 'baidu_keyword', 'jd']
+# 京东方案已下线（2026-10-31）：
+#   1. 以图搜图能通但不稳定（手动跑通 1 次拿到 30 个同款，自动化后连续 5 次失败）
+#   2. 关键词搜图不精准（拿「插排」去搜会混进黑色款等无关商品）
+#   3. 评价图带红色「JD.COM京东」水印，位置随机，去水印后痕迹明显
+# 淘宝/拼多多同样做不通：淘宝的上传 input 在前端框架的受控组件里，
+# CDP 设文件后 el.files.length 还是 0；拼多多要 anti_content 签名。
+# 所以只保留两个百度源，它们抓回来的图不带水印。
+SOURCE_ORDER = ['baidu_image', 'baidu_keyword']
 
 SOURCE_LABELS = {
     'baidu_image': '百度识图',
     'baidu_keyword': '百度图片',
-    'jd': '京东评价图',
 }
 
 # 每个来源的默认抓取数量，前端可覆盖
 SOURCE_DEFAULT_MAX = {
     'baidu_image': 15,
     'baidu_keyword': 15,
-    'jd': 10,
 }
 
 
@@ -494,21 +497,6 @@ async def collect_all_sources(product_image, keyword='', max_per_source=15,
             'status': 'skipped', 'images': [],
             'message': '没有关键词（商品标题为空），跳过', 'cost': 0,
         })
-
-    # --- 源 3：京东买家评价图（需登录）---
-    if 'jd' in enabled:
-        plat = 'jd'
-        try:
-            t0 = asyncio.get_event_loop().time()
-            r = await fetch_review_images(plat, keyword, max_images=_max_for('jd'))
-            r.setdefault('cost', round(asyncio.get_event_loop().time() - t0, 1))
-            results.append(r)
-        except Exception as e:
-                results.append({
-                    'source': plat, 'name': SOURCE_LABELS.get(plat, plat),
-                    'status': 'failed', 'images': [],
-                    'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
-                })
 
     # 按预定义顺序稳定排序
     order = {k: i for i, k in enumerate(SOURCE_ORDER)}
