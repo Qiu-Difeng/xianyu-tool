@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.5.5'
+            return '1.5.6'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -387,6 +387,74 @@ class Api:
                     loop.close()
                 except Exception:
                     pass
+            return r
+        except Exception as e:
+            return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}
+
+    # ============ 手动框选去水印 ============
+    def clean_watermark_box(self, img_src, box, mode='box', output_dir=''):
+        """按用户框选的矩形去水印
+
+        img_src: 两种都支持
+          - 文件绝对路径
+          - data:image/jpeg;base64,... 形式的数据（前端图片列表用的就是这种）
+        box: [x1, y1, x2, y2] 像素坐标（原图尺寸）
+        mode: 'box' 抹整个框 / 'text' 只抹框内笔画
+
+        返回里带 image（base64 data URL），前端直接换掉图片就行
+        """
+        try:
+            import base64
+            import tempfile
+            import watermark_cleaner as wc
+
+            if not box or len(box) != 4:
+                return {'success': False, 'error': '框选坐标不完整'}
+            if not img_src:
+                return {'success': False, 'error': '没有图片'}
+
+            tmpdir = tempfile.mkdtemp(prefix='wm_')
+            from_data = img_src.startswith('data:')
+            if from_data:
+                # 前端给的是 base64 数据，落成临时文件再处理
+                try:
+                    b64 = img_src.split(',', 1)[1]
+                except Exception:
+                    return {'success': False, 'error': '图片数据格式不对'}
+                src_path = os.path.join(tmpdir, 'src.jpg')
+                with open(src_path, 'wb') as f:
+                    f.write(base64.b64decode(b64))
+            else:
+                if not os.path.isfile(img_src):
+                    return {'success': False, 'error': '图片不存在'}
+                src_path = img_src
+
+            out_path = os.path.join(tmpdir, 'out.jpg')
+            r = wc.remove_watermark_in_box(src_path, out_path, box, mode=mode)
+            if not r.get('success'):
+                return r
+
+            with open(out_path, 'rb') as f:
+                out_b64 = base64.b64encode(f.read()).decode()
+            r['image'] = 'data:image/jpeg;base64,' + out_b64
+
+            # 如果有输出目录，顺便存一份到磁盘（文件名带 _clean）
+            if output_dir and os.path.isdir(output_dir):
+                try:
+                    base_n = 'search_clean_%d.jpg' % int(time.time())
+                    dst = os.path.join(output_dir, base_n)
+                    with open(dst, 'wb') as f:
+                        f.write(base64.b64decode(out_b64))
+                    r['out_path'] = dst
+                except Exception:
+                    pass
+
+            # 清理临时目录
+            try:
+                import shutil
+                shutil.rmtree(tmpdir, ignore_errors=True)
+            except Exception:
+                pass
             return r
         except Exception as e:
             return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}

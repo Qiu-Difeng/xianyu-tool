@@ -32,8 +32,9 @@ def get_lama():
         if _lama_unavailable:
             return None
         try:
-            from simple_lama_inpainting import SimpleLama
-            _lama_instance = SimpleLama()
+            # 走 _lama_load_cpu：它会先 patch torch.jit.load 的 map_location，
+            # 否则纯 CPU 机器加载 CUDA 导出的 big-lama.pt 会抛 NotImplementedError
+            _lama_instance = _lama_load_cpu()
         except Exception as e:
             print(f"    ⚠ LaMa 不可用（{type(e).__name__}: {e}），降级使用 OpenCV inpaint")
             _lama_unavailable = True
@@ -332,3 +333,149 @@ if __name__ == "__main__":
         print(f"✓ 完成: {result}")
     else:
         print("✗ 失败")
+
+# ============================================================
+# 手动框选去水印
+# ============================================================
+# 场景：京东/拼多多评价图带红色「JD.COM京东」水印，位置每张都不一样。
+# 自动检测不准（试过红色行投影和 GLM-4V 判断区域，6 张只对 3 张），
+# 所以交给用户框一下，程序负责精准修复。
+#
+# 关键：**只抹框内的水印笔画，不是整块抹掉**。
+# 实测整条横带全抹会覆盖画面 15.9%，修完插排中段一片模糊；
+# 只抹红色文字笔画只覆盖 2.9%，背景和商品细节全部保留。
+
+def _lama_load_cpu():
+    """加载 LaMa（强制 CPU）
+
+    simple_lama_inpainting 里 torch.jit.load 没传 map_location，
+    而 big-lama.pt 是 CUDA 上导出的，纯 CPU 机器直接加载会抛
+    NotImplementedError: Could not run 'aten::empty_strided' ... 'CUDA' backend。
+    """
+    import torch
+    _orig = torch.jit.load
+
+    def _patched(path, *a, **kw):
+        kw.setdefault('map_location', 'cpu')
+        return _orig(path, *a, **kw)
+
+    torch.jit.load = _patched
+    from simple_lama_inpainting import SimpleLama
+    return SimpleLama()
+
+
+def build_text_mask(img_bgr, box, dilate_px=5, red_only=True):
+    """在指定框内生成"只覆盖水印笔画"的 mask
+
+    box: (x1, y1, x2, y2) 像素坐标
+    red_only: True 时只取红色像素（京东水印是红色）；
+              框里如果水印不是红色，设为 False 会取"高对比度笔画"
+
+    返回与原图同尺寸的 mask，框外全黑（不修），框内只有笔画为白。
+    """
+    import cv2
+    import numpy as np
+
+    h, w = img_bgr.shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in box]
+    x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+    y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+    full = np.zeros((h, w), np.uint8)
+    if x2 - x1 < 4 or y2 - y1 < 4:
+        return full
+
+    roi = img_bgr[y1:y2, x1:x2]
+
+    if red_only:
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        # 红色色相在环的两端，要取两段
+        # S 取 45：太高（55）漏掉淡的水印，太低（30）会把商品本身的粉红抹掉。
+        # 45 是实测下来既能抓到半透明水印、又不会误伤商品的平衡点。
+        m1 = cv2.inRange(hsv, np.array([0, 45, 55]), np.array([15, 255, 255]))
+        m2 = cv2.inRange(hsv, np.array([165, 45, 55]), np.array([180, 255, 255]))
+        m = cv2.bitwise_or(m1, m2)
+    else:
+        # 兜底：取框内明显偏离背景的像素
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        med = int(np.median(gray))
+        m = cv2.inRange(gray, 0, max(0, med - 25)) | cv2.inRange(gray, min(255, med + 25), 255)
+
+    # 膨胀：水印是半透明的，边缘有抗锯齿，不扩几像素会留一圈红边
+    if dilate_px > 0:
+        m = cv2.dilate(m, np.ones((dilate_px, dilate_px), np.uint8), iterations=1)
+
+    full[y1:y2, x1:x2] = m
+    return full
+
+
+def remove_watermark_in_box(img_path, out_path, box, dilate_px=5, max_width=1100,
+                            mode='box'):
+    """按用户框选的区域去水印
+
+    mode:
+      'box'  抹整个框（默认）。用户框多小就抹多小，水印一定去掉，
+             代价是框里的背景也会被重绘。框得越紧损失越小。
+      'text' 只抹框内的水印笔画（按颜色检测）。背景保留得最好，
+             但水印颜色太淡时检测不到会漏（实测淡红水印只有 50% 命中）。
+
+    实测结论：半透明水印的颜色随背景变化很大（白底上饱和度只有 20-30），
+    靠颜色检测不可靠，所以默认用 'box'。
+
+    返回 {'success', 'coverage', 'method', 'error'}
+    """
+    import os
+    import cv2
+    import numpy as np
+
+    try:
+        img = cv2.imread(img_path)
+        if img is None:
+            return {'success': False, 'error': '读不到图片'}
+
+        # 大图先缩：4032x3024 直接进 LaMa 要 150 秒，缩到 1100 宽只要 7 秒，
+        # 而闲鱼展示宽度也就 750，缩了没损失
+        scale = 1.0
+        if img.shape[1] > max_width:
+            scale = max_width / float(img.shape[1])
+            img = cv2.resize(img, (max_width, int(img.shape[0] * scale)),
+                             interpolation=cv2.INTER_AREA)
+
+        scaled_box = [v * scale for v in box]
+
+        if mode == 'text':
+            mask = build_text_mask(img, scaled_box, dilate_px=dilate_px)
+        else:
+            # 整个框全抹，只留 2px 内缩，避免把框外的边缘也带进去
+            hh, ww = img.shape[:2]
+            x1, y1, x2, y2 = [int(v) for v in scaled_box]
+            x1, x2 = max(0, min(x1, x2)), min(ww, max(x1, x2))
+            y1, y2 = max(0, min(y1, y2)), min(hh, max(y1, y2))
+            mask = np.zeros((hh, ww), np.uint8)
+            mask[y1:y2, x1:x2] = 255
+
+        coverage = (mask > 0).sum() / float(mask.shape[0] * mask.shape[1])
+
+        if coverage <= 0:
+            return {'success': False,
+                    'error': '框里没找到水印笔画，试试把框拖大一点，或者换个位置'}
+
+        # 优先 LaMa，不行降级 OpenCV
+        method = 'lama'
+        try:
+            lama = get_lama()
+            if lama is not None:
+                from PIL import Image
+                out = lama(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
+                           Image.fromarray(mask).convert('L'))
+                fixed = cv2.cvtColor(np.array(out), cv2.COLOR_RGB2BGR)
+            else:
+                raise RuntimeError('LaMa 不可用')
+        except Exception:
+            method = 'opencv'
+            fixed = _cv2_inpaint(img, mask)
+
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)) or '.', exist_ok=True)
+        cv2.imwrite(out_path, fixed, [int(cv2.IMWRITE_JPEG_QUALITY), 93])
+        return {'success': True, 'coverage': round(coverage * 100, 2), 'method': method}
+    except Exception as e:
+        return {'success': False, 'error': '%s: %s' % (type(e).__name__, e)}

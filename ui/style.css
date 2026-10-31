@@ -803,3 +803,52 @@ body {
 }
 .ms-kw-input:focus { outline: none; border-color: var(--accent2); }
 .ms-kw-hint { color: var(--text-faint); font-size: 11px; }
+
+/* ===== 手动框选去水印 ===== */
+.img-card { position: relative; }
+.img-wm-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .18s;
+}
+.img-card:hover .img-wm-btn { opacity: 1; }
+.img-wm-btn:hover { background: var(--accent2); border-color: var(--accent2); }
+
+.wm-stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  margin: 4px auto 10px;
+}
+.wm-stage img {
+  max-width: 100%;
+  max-height: 52vh;
+  display: block;
+  cursor: crosshair;
+  user-select: none;
+  border-radius: 6px;
+}
+.wm-rect {
+  position: absolute;
+  display: none;
+  border: 2px dashed #22c55e;
+  background: rgba(34,197,94,0.18);
+  pointer-events: none;
+  border-radius: 2px;
+}
+.wm-tip {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
