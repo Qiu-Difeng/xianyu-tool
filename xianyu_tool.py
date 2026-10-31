@@ -282,7 +282,8 @@ def generate_copywriting(title, desc):
     return result
 
 
-def regenerate_copy(title, desc, version, custom_prompt=None, v1_choices=None):
+def regenerate_copy(title, desc, version, custom_prompt=None, v1_choices=None,
+                    v1_randomize=False):
     """重新生成指定版本的文案
 
     三个版本都能独立控制：
@@ -296,7 +297,7 @@ def regenerate_copy(title, desc, version, custom_prompt=None, v1_choices=None):
     changes = None
     if version == 'v1':
         from module3_copywriter import v1_dict_replace
-        text, changes = v1_dict_replace(desc, v1_choices)
+        text, changes = v1_dict_replace(desc, v1_choices, randomize=v1_randomize)
     elif version == 'v2':
         if custom_prompt:
             from module3_copywriter import v2_ai_custom

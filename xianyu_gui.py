@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.5.7'
+            return '1.5.8'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -987,7 +987,8 @@ class Api:
                 return self.get_copies(output_dir)
             return {"done": False}
 
-    def regenerate_copy(self, output_dir, version, custom_prompt=None, v1_choices=None):
+    def regenerate_copy(self, output_dir, version, custom_prompt=None, v1_choices=None,
+                        v1_randomize=False):
         """重新生成指定版本的文案
 
         三个版本都能独立控制：
@@ -1006,7 +1007,8 @@ class Api:
 
             result = regenerate_copy(title, desc, version,
                                      custom_prompt=custom_prompt,
-                                     v1_choices=v1_choices)
+                                     v1_choices=v1_choices,
+                                     v1_randomize=v1_randomize)
             if not result:
                 return {"success": False, "error": "生成失败"}
 

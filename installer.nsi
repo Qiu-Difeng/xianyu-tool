@@ -8,12 +8,12 @@ InstallDirRegKey HKCU "Software\XianyuTool" "InstallDir"
 RequestExecutionLevel User
 ShowInstDetails show
 
-VIProductVersion "1.5.7.0"
+VIProductVersion "1.5.8.0"
 VIAddVersionKey /LANG=2052 "ProductName" "XianyuTool"
 VIAddVersionKey /LANG=2052 "CompanyName" "Qiu-Difeng"
 VIAddVersionKey /LANG=2052 "FileDescription" "XianyuTool Setup"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "MIT License"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.5.7.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.5.8.0"
 
 !define MUI_ICON "xianyu_icon.ico"
 !define MUI_UNICON "xianyu_icon.ico"
@@ -49,7 +49,7 @@ Section "Main" SecMain
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayName" "XianyuTool"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "UninstallString" '"$INSTDIR\uninstall.exe"'
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayIcon" '"$INSTDIR\XianyuTool.exe"'
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.5.7"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "DisplayVersion" "1.5.8"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "Publisher" "Qiu-Difeng"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XianyuTool" "InstallLocation" "$INSTDIR"
     
@@ -81,7 +81,7 @@ Function .onInstSuccess
     ; stored with a double backslash while the app reads
     ; Software\XianyuTool\Version and would never find it, making the
     ; update check report a new version on every launch.
-    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.5.7"
+    WriteRegStr HKCU "Software\XianyuTool" "Version" "1.5.8"
 FunctionEnd
 
 

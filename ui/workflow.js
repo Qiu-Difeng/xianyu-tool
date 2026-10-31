@@ -281,8 +281,8 @@ function renderCopyControl(key) {
       box.innerHTML = '<div class="custom-prompt-area"><div class="cp-label">' +
         '<svg class="ico"><use href="#i-info"/></svg> V1 词典替换</div>' +
         '<div class="cp-empty">这一版没有替换任何词（原文里没有词典中的词）</div>' +
-        '<div class="cp-row"><button class="btn-refresh cp-btn" onclick="applyV1Choices()">' +
-        '<svg class="ico"><use href="#i-refresh"/></svg> 重新替换一次</button></div></div>';
+        '<div class="cp-row"><button class="btn-refresh cp-btn" onclick="applyV1Choices(true)">' +
+        '<svg class="ico"><use href="#i-sparkle"/></svg> 随机换一批试试</button></div></div>';
       return;
     }
     let h = '<div class="custom-prompt-area">';
@@ -303,8 +303,13 @@ function renderCopyControl(key) {
       '</div>';
     });
     h += '</div>';
-    h += '<div class="cp-row"><button class="btn-refresh cp-btn" onclick="applyV1Choices()">' +
-         '<svg class="ico"><use href="#i-refresh"/></svg> 按选择重新替换</button></div>';
+    h += '<div class="cp-row">';
+    h += '<button class="btn-refresh cp-btn" onclick="applyV1Choices()">' +
+         '<svg class="ico"><use href="#i-refresh"/></svg> 按选择重新替换</button>';
+    h += '<button class="btn-refresh cp-btn" onclick="applyV1Choices(true)" ' +
+         'title="每个词随机换一个别的说法">' +
+         '<svg class="ico"><use href="#i-sparkle"/></svg> 随机换一批</button>';
+    h += '</div>';
     h += '</div>';
     box.innerHTML = h;
     return;
@@ -333,13 +338,17 @@ function renderCopyControl(key) {
 }
 
 // 收集 V1 的下拉选择，重新替换
-function applyV1Choices() {
+function applyV1Choices(randomize) {
+  // randomize=true 时忽略下拉框，每个词随机选一个同义词
   const sels = document.querySelectorAll('#copyControl .vc-select');
   const choices = {};
-  sels.forEach(function (s) { choices[s.dataset.orig] = parseInt(s.value, 10) || 0; });
+  if (!randomize) {
+    sels.forEach(function (s) { choices[s.dataset.orig] = parseInt(s.value, 10) || 0; });
+  }
   if (!_outputDir) { addLog('还没有商品数据', 'warn'); return; }
-  addLog('按当前选择重新做词典替换…', 'accent');
-  pywebview.api.regenerate_copy(_outputDir, 'v1', null, choices).then(function (r) {
+  addLog(randomize ? '随机换一批同义词…' : '按当前选择重新做词典替换…', 'accent');
+  pywebview.api.regenerate_copy(_outputDir, 'v1', null,
+                                randomize ? null : choices, !!randomize).then(function (r) {
     if (!r || !r.success) {
       addLog('替换失败：' + ((r && r.error) || '未知原因'), 'error');
       return;
@@ -348,7 +357,8 @@ function applyV1Choices() {
     window._copies[0].banned = r.banned;
     if (r.changes) window._v1Changes = r.changes;
     switchCopy(0);
-    addLog('V1 重新替换完成（' + r.text.length + ' 字）', 'success');
+    addLog((randomize ? '随机替换完成' : 'V1 重新替换完成') +
+           '（' + r.text.length + ' 字，改了 ' + ((r.changes || []).length) + ' 个词）', 'success');
   }).catch(function (e) { addLog('替换异常：' + e, 'error'); });
 }
 
