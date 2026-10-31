@@ -391,17 +391,19 @@ async def search_by_keyword(keyword, max_images=30, timeout=30):
 # 淘宝/拼多多同样做不通：淘宝的上传 input 在前端框架的受控组件里，
 # CDP 设文件后 el.files.length 还是 0；拼多多要 anti_content 签名。
 # 所以只保留两个百度源，它们抓回来的图不带水印。
-SOURCE_ORDER = ['baidu_image', 'baidu_keyword']
+# 只保留百度识图（以图搜图）。百度图片（关键词搜图）已移除：
+# 它按文字搜，拿回来的图一半是小红书/公众号文章截图，
+# 而且和闲鱼商品经常不是同款（用户反馈「混进黑色款」主要来自这里）。
+# 以图搜图是按图找同款，精准度高得多。
+SOURCE_ORDER = ['baidu_image']
 
 SOURCE_LABELS = {
     'baidu_image': '百度识图',
-    'baidu_keyword': '百度图片',
 }
 
 # 每个来源的默认抓取数量，前端可覆盖
 SOURCE_DEFAULT_MAX = {
     'baidu_image': 15,
-    'baidu_keyword': 15,
 }
 
 
@@ -469,33 +471,6 @@ async def collect_all_sources(product_image, keyword='', max_per_source=15,
             'source': 'baidu_image', 'name': SOURCE_LABELS['baidu_image'],
             'status': 'skipped', 'images': [],
             'message': '没有参考图，跳过以图搜图', 'cost': 0,
-        })
-
-    # --- 源 2：百度图片（关键词）---
-    if 'baidu_keyword' in enabled and keyword:
-        t0 = asyncio.get_event_loop().time()
-        try:
-            urls = await search_by_keyword(keyword, max_images=_max_for('baidu_keyword'))
-            cost = asyncio.get_event_loop().time() - t0
-            results.append({
-                'source': 'baidu_keyword',
-                'name': SOURCE_LABELS['baidu_keyword'],
-                'status': 'ok' if urls else 'empty',
-                'images': urls,
-                'message': ('按「%s」搜到' % keyword) if urls else '这个关键词没搜到图',
-                'cost': round(cost, 1),
-            })
-        except Exception as e:
-            results.append({
-                'source': 'baidu_keyword', 'name': SOURCE_LABELS['baidu_keyword'],
-                'status': 'failed', 'images': [],
-                'message': '%s: %s' % (type(e).__name__, e), 'cost': 0,
-            })
-    elif 'baidu_keyword' in enabled:
-        results.append({
-            'source': 'baidu_keyword', 'name': SOURCE_LABELS['baidu_keyword'],
-            'status': 'skipped', 'images': [],
-            'message': '没有关键词（商品标题为空），跳过', 'cost': 0,
         })
 
     # 按预定义顺序稳定排序

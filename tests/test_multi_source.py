@@ -58,14 +58,11 @@ def test_summarize_uses_count_not_url_length():
 
 
 # ---------------- 聚合与降级 ----------------
-
 def test_collect_order():
-    """返回结果必须按 SOURCE_ORDER 排好"""
-    results = run(isr.collect_all_sources('', keyword='', sources=['baidu_image', 'baidu_keyword']))
+    """只剩百度识图，结果里就该只有它"""
+    results = run(isr.collect_all_sources('', keyword='', sources=['baidu_image']))
     order = [r['source'] for r in results]
-    assert order == ['baidu_image', 'baidu_keyword'], order
-
-
+    assert order == ['baidu_image'], order
 def test_collect_skips_when_no_input():
     """没图没关键词时两个源都应标 skipped"""
     results = run(isr.collect_all_sources('', keyword='', sources=['baidu_image', 'baidu_keyword']))
@@ -73,65 +70,9 @@ def test_collect_skips_when_no_input():
         assert r['status'] == 'skipped', r
 
 
-def test_collect_degrades_on_source_failure(monkeypatch):
-    """一个源抛异常，不应影响整体返回"""
-    async def boom(*a, **kw):
-        raise RuntimeError('模拟接口挂了')
-
-    async def ok_keyword(*a, **kw):
-        return ['http://x/1.jpg', 'http://x/2.jpg']
-
-    monkeypatch.setattr(isr, 'search_by_image', boom)
-    monkeypatch.setattr(isr, 'search_by_keyword', ok_keyword)
-
-    results = run(isr.collect_all_sources('fake.jpg', keyword='插排', sources=['baidu_image', 'baidu_keyword']))
-
-    by_src = {r['source']: r for r in results}
-    assert by_src['baidu_image']['status'] == 'failed'
-    assert 'RuntimeError' in by_src['baidu_image']['message']
-    # 另一个源照常返回
-    assert by_src['baidu_keyword']['status'] == 'ok'
-    assert len(by_src['baidu_keyword']['images']) == 2
-
-
-def test_collect_uses_detected_keyword(monkeypatch):
-    """识图识别出商品名时，关键词搜图应该复用它"""
-    async def fake_image(*a, **kw):
-        return ['http://x/1.jpg'], '智能插排'
-
-    captured = {}
-
-    async def fake_keyword(kw, **kwargs):
-        captured['kw'] = kw
-        return ['http://y/1.jpg']
-
-    monkeypatch.setattr(isr, 'search_by_image', fake_image)
-    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
-
-    run(isr.collect_all_sources('fake.jpg', keyword='', sources=['baidu_image', 'baidu_keyword']))
-    assert captured.get('kw') == '智能插排', '应复用识图识别出的关键词'
-
-
-def test_collect_empty_source_marks_empty(monkeypatch):
-    async def empty_image(*a, **kw):
-        return [], ''
-
-    async def empty_keyword(*a, **kw):
-        return []
-
-    monkeypatch.setattr(isr, 'search_by_image', empty_image)
-    monkeypatch.setattr(isr, 'search_by_keyword', empty_keyword)
-
-    results = run(isr.collect_all_sources('fake.jpg', keyword='x', sources=['baidu_image', 'baidu_keyword']))
-    for r in results:
-        assert r['status'] == 'empty', r
-
-
 def test_source_order_constant():
-    # 京东已下线，只剩两个百度源
-    assert isr.SOURCE_ORDER[0] == 'baidu_image'
-    assert isr.SOURCE_ORDER[-1] == 'baidu_keyword'
-    assert len(isr.SOURCE_ORDER) == 2
+    # 只剩百度识图（以图搜图）
+    assert isr.SOURCE_ORDER == ['baidu_image']
 
 
 def test_source_labels_complete():
@@ -237,40 +178,18 @@ def test_goods_id_uses_data_sku():
 
 # ---------------- 来源勾选与数量控制 ----------------
 
-def test_source_order_only_baidu():
-    """京东、拼多多、淘宝都已移除，只剩两个百度源"""
-    assert isr.SOURCE_ORDER == ['baidu_image', 'baidu_keyword']
+def test_source_order_only_baidu_image():
+    """京东、拼多多、淘宝、百度图片都已移除，只剩百度识图"""
+    assert isr.SOURCE_ORDER == ['baidu_image']
     assert set(isr.SOURCE_LABELS) == set(isr.SOURCE_ORDER)
-    for gone in ('pdd', 'taobao', 'jd'):
+    for gone in ('pdd', 'taobao', 'jd', 'baidu_keyword'):
         assert gone not in isr.SOURCE_LABELS
 
 
 def test_source_default_max():
     assert isr.SOURCE_DEFAULT_MAX['baidu_image'] == 15
-    assert isr.SOURCE_DEFAULT_MAX['baidu_keyword'] == 15
-    assert 'jd' not in isr.SOURCE_DEFAULT_MAX
-
-
-def test_collect_filters_sources(monkeypatch):
-    """只传某个源时，结果里只有那个源"""
-    called = []
-
-    async def fake_image(*a, **kw):
-        called.append('baidu_image')
-        return ['http://x/1.jpg'], ''
-
-    async def fake_keyword(*a, **kw):
-        called.append('baidu_keyword')
-        return ['http://y/1.jpg']
-
-    monkeypatch.setattr(isr, 'search_by_image', fake_image)
-    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
-
-    results = run(isr.collect_all_sources('fake.jpg', keyword='插排',
-                                          sources=['baidu_keyword']))
-    assert [r['source'] for r in results] == ['baidu_keyword']
-    assert 'baidu_image' not in called, '没勾选的源不应该被调用'
-    assert 'baidu_keyword' in called
+    for gone in ('baidu_keyword', 'jd'):
+        assert gone not in isr.SOURCE_DEFAULT_MAX
 
 
 def test_collect_empty_sources_returns_nothing(monkeypatch):
@@ -298,12 +217,11 @@ def test_collect_none_sources_means_all(monkeypatch):
         return ['http://y/1.jpg']
 
     monkeypatch.setattr(isr, 'search_by_image', fake_image)
-    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
     monkeypatch.setattr(isr, 'fetch_review_images', fake_image)
 
     results = run(isr.collect_all_sources('fake.jpg', keyword='插排', sources=None))
     srcs = [r['source'] for r in results]
-    assert srcs == ['baidu_image', 'baidu_keyword'], srcs
+    assert srcs == ['baidu_image'], srcs
 
 
 def test_collect_ignores_unknown_source(monkeypatch):
@@ -315,28 +233,6 @@ def test_collect_ignores_unknown_source(monkeypatch):
     results = run(isr.collect_all_sources('fake.jpg', keyword='x',
                                           sources=['baidu_image', 'pdd', 'nope']))
     assert [r['source'] for r in results] == ['baidu_image']
-
-
-def test_max_map_applied_per_source(monkeypatch):
-    """每个源用自己配置的数量，不是统一值"""
-    seen = {}
-
-    async def fake_image(img, max_images=15, **kw):
-        seen['image'] = max_images
-        return [], ''
-
-    async def fake_keyword(kw_, max_images=15, **kw):
-        seen['keyword'] = max_images
-        return []
-
-    monkeypatch.setattr(isr, 'search_by_image', fake_image)
-    monkeypatch.setattr(isr, 'search_by_keyword', fake_keyword)
-
-    run(isr.collect_all_sources('fake.jpg', keyword='x',
-                                sources=['baidu_image', 'baidu_keyword'],
-                                max_map={'baidu_image': 5, 'baidu_keyword': 9}))
-    assert seen['image'] == 5, seen
-    assert seen['keyword'] == 9, seen
 
 
 def test_max_map_clamped(monkeypatch):
