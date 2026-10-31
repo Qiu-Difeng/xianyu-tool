@@ -72,7 +72,7 @@ class Api:
                 version, _ = winreg.QueryValueEx(key, 'Version')
                 return version
         except Exception:
-            return '1.5.6'
+            return '1.5.7'
 
     def _parse_version(self, tag):
         """将版本号字符串转为可比较的元组，如 'v1.2.3' -> (1, 2, 3)"""
@@ -956,7 +956,18 @@ class Api:
             {"key": "v2", "label": "V2 AI微调", "text": data.get("v2", ""), "banned": filter_banned(data.get("v2", ""))},
             {"key": "v3", "label": "V3 AI重写", "text": data.get("v3", ""), "banned": filter_banned(data.get("v3", ""))},
         ]
-        return {"versions": versions, "title": data.get("title", "")}
+        # V1 改了哪些词，前端要显示明细（原词 / 新词 / 可选同义词）。
+        # 老版本生成的 copies.json 里没存这个字段，这里按默认同义词补算一遍，
+        # 免得用户打开看到「没有替换任何词」却也没法操作。
+        changes = data.get("v1_changes")
+        if not changes and data.get("original"):
+            try:
+                from module3_copywriter import v1_dict_replace
+                _, changes = v1_dict_replace(data["original"])
+            except Exception:
+                changes = []
+        return {"versions": versions, "title": data.get("title", ""),
+                "v1_changes": changes or []}
 
     def check_copy_status(self, output_dir):
         """检查文案是否生成完成，完成后返回文案数据"""
@@ -976,11 +987,15 @@ class Api:
                 return self.get_copies(output_dir)
             return {"done": False}
 
-    def regenerate_copy(self, output_dir, version, custom_prompt=None):
-        """重新生成指定版本的文案；V3支持自定义提示词"""
+    def regenerate_copy(self, output_dir, version, custom_prompt=None, v1_choices=None):
+        """重新生成指定版本的文案
+
+        三个版本都能独立控制：
+          v1: v1_choices 控制每个词用第几个同义词，返回 changes 供前端显示明细
+          v2/v3: custom_prompt，不填走默认流程
+        """
         try:
             from xianyu_tool import regenerate_copy, save_single_copy
-            from module3_copywriter import filter_banned
 
             # 读取原始数据
             copies_dir = os.path.join(output_dir, "copies")
@@ -989,23 +1004,25 @@ class Api:
             title = data.get("title", "")
             desc = data.get("original", "")
 
-            if version == 'v3' and custom_prompt:
-                # V3自定义提示词重写
-                from module3_copywriter import v3_ai_custom_rewrite, post_process
-                text = post_process(v3_ai_custom_rewrite(title, desc, custom_prompt))
-                banned = filter_banned(text)
-                result = {"text": text, "banned": banned}
-            else:
-                result = regenerate_copy(title, desc, version)
-            
-            if result:
-                save_single_copy(title, result["text"], version, copies_dir)
-                # 更新JSON
-                data[version] = result["text"]
-                with open(os.path.join(copies_dir, "copies.json"), "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                return {"success": True, "text": result["text"], "banned": result["banned"]}
-            return {"success": False, "error": "生成失败"}
+            result = regenerate_copy(title, desc, version,
+                                     custom_prompt=custom_prompt,
+                                     v1_choices=v1_choices)
+            if not result:
+                return {"success": False, "error": "生成失败"}
+
+            save_single_copy(title, result["text"], version, copies_dir)
+
+            # 更新 JSON（V1 的替换明细也一起存，下次打开还能看到）
+            data[version] = result["text"]
+            if result.get("changes") is not None:
+                data["v1_changes"] = result["changes"]
+            with open(os.path.join(copies_dir, "copies.json"), "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            out = {"success": True, "text": result["text"], "banned": result["banned"]}
+            if result.get("changes") is not None:
+                out["changes"] = result["changes"]
+            return out
         except Exception as e:
             return {"success": False, "error": str(e)}
 

@@ -282,21 +282,42 @@ def generate_copywriting(title, desc):
     return result
 
 
-def regenerate_copy(title, desc, version):
-    """重新生成指定版本的文案"""
+def regenerate_copy(title, desc, version, custom_prompt=None, v1_choices=None):
+    """重新生成指定版本的文案
+
+    三个版本都能独立控制：
+      v1: v1_choices = {原词: 同义词下标}，控制每个词用第几个同义词
+      v2: custom_prompt，不填就走默认的「微调」流程
+      v3: custom_prompt，不填就走默认的「重写」流程
+
+    返回里 V1 会带 changes（改了哪些词），前端用来显示明细。
+    """
     print(f"\n  重新生成 {version}...")
+    changes = None
     if version == 'v1':
-        text = regenerate_v1(desc)
+        from module3_copywriter import v1_dict_replace
+        text, changes = v1_dict_replace(desc, v1_choices)
     elif version == 'v2':
-        text = regenerate_v2(title, desc)
+        if custom_prompt:
+            from module3_copywriter import v2_ai_custom
+            text = v2_ai_custom(title, desc, custom_prompt)
+        else:
+            text = regenerate_v2(title, desc)
     elif version == 'v3':
-        text = regenerate_v3(title, desc)
+        if custom_prompt:
+            from module3_copywriter import v3_ai_custom_rewrite, post_process
+            text = post_process(v3_ai_custom_rewrite(title, desc, custom_prompt))
+        else:
+            text = regenerate_v3(title, desc)
     else:
         return None
-    
+
     banned = filter_banned(text)
     print(f"  {version} 完成 ({len(text)}字) 违禁词: {banned if banned else '无'}")
-    return {"text": text, "banned": banned}
+    result = {"text": text, "banned": banned}
+    if changes is not None:
+        result["changes"] = changes
+    return result
 
 
 # ============================================================

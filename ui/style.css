@@ -852,3 +852,47 @@ body {
   color: var(--text-faint);
   margin-top: 4px;
 }
+
+/* ===== V1 词典替换明细 ===== */
+.v1-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.vc-orig {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  min-width: 48px;
+  text-align: right;
+}
+.vc-arrow { color: var(--accent2); font-weight: 600; }
+.vc-select {
+  flex: 1;
+  min-width: 90px;
+  padding: 4px 8px;
+  background: var(--field-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.vc-select:focus { outline: none; border-color: var(--accent2); }
+.vc-count {
+  color: var(--text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}

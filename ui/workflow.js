@@ -260,21 +260,119 @@ function renderCopies(data) {
       '<span>' + escapeHtml(v.label) + '</span><span class="refresh-icon" onclick="event.stopPropagation();refreshCopy(' + i + ')" title="重新生成"><svg class="ico"><use href="#i-refresh"/></svg></span></div>';
   });
   html += '</div><div id="copyBody"></div>';
-  // V3自定义提示词区域
-  html += '<div class="custom-prompt-area">';
-  html += '<div class="cp-label"><svg class="ico"><use href="#i-info"/></svg> V3 自定义提示词（可选，不填则默认重写）</div>';
-  html += '<div class="cp-row">';
-  html += '<input type="text" id="v3CustomPrompt" class="cp-input" placeholder="例如：突出性价比，加上使用场景，语气活泼一点" />';
-  html += '<button class="btn-refresh cp-btn" onclick="savePromptTemplate()"><svg class="ico"><use href="#i-download"/></svg> 存为模板</button>';
-  html += '<button class="btn-refresh cp-btn" onclick="v3CustomRewrite()"><svg class="ico"><use href="#i-refresh"/></svg> 按提示词重写</button>';
-  html += '</div>';
-  html += '<div id="v3TplChips" class="cp-chips"></div>';
-  html += '</div>';
-  // 模板列表异步填充（每次渲染文案都会重建这块）
-  setTimeout(loadPromptTemplates, 80);
+  // 控制区跟着当前版本变：V1 显示替换明细，V2/V3 显示各自的提示词框
+  html += '<div id="copyControl"></div>';
   window._copies = data.versions;
+  window._v1Changes = data.v1_changes || [];
   setTimeout(() => { switchCopy(0); }, 50);
   return html;
+}
+
+// 按当前版本渲染控制区
+function renderCopyControl(key) {
+  const box = document.getElementById('copyControl');
+  if (!box) return;
+
+  if (key === 'v1') {
+    // V1：显示改了哪些词，每个词都能换同义词
+    const changes = window._v1Changes || [];
+    if (!changes.length) {
+      // 一个词都没替换也要给按钮：用户可能想再试一次，或者原文确实没词典词
+      box.innerHTML = '<div class="custom-prompt-area"><div class="cp-label">' +
+        '<svg class="ico"><use href="#i-info"/></svg> V1 词典替换</div>' +
+        '<div class="cp-empty">这一版没有替换任何词（原文里没有词典中的词）</div>' +
+        '<div class="cp-row"><button class="btn-refresh cp-btn" onclick="applyV1Choices()">' +
+        '<svg class="ico"><use href="#i-refresh"/></svg> 重新替换一次</button></div></div>';
+      return;
+    }
+    let h = '<div class="custom-prompt-area">';
+    h += '<div class="cp-label"><svg class="ico"><use href="#i-info"/></svg> ' +
+         'V1 词典替换：改了 ' + changes.length + ' 个词，可以逐个改选同义词</div>';
+    h += '<div class="v1-changes">';
+    changes.forEach(function (c) {
+      h += '<div class="vc-row">' +
+        '<span class="vc-orig">' + escapeHtml(c.original) + '</span>' +
+        '<span class="vc-arrow">→</span>' +
+        '<select class="vc-select" data-orig="' + escapeHtml(c.original) + '">' +
+          c.options.map(function (o, j) {
+            return '<option value="' + j + '"' + (j === c.index ? ' selected' : '') + '>' +
+                   escapeHtml(o) + '</option>';
+          }).join('') +
+        '</select>' +
+        '<span class="vc-count">出现 ' + c.count + ' 次</span>' +
+      '</div>';
+    });
+    h += '</div>';
+    h += '<div class="cp-row"><button class="btn-refresh cp-btn" onclick="applyV1Choices()">' +
+         '<svg class="ico"><use href="#i-refresh"/></svg> 按选择重新替换</button></div>';
+    h += '</div>';
+    box.innerHTML = h;
+    return;
+  }
+
+  // V2 / V3：各自的提示词框
+  const isV2 = key === 'v2';
+  const label = isV2 ? 'V2 自定义提示词（可选，不填则默认微调）'
+                     : 'V3 自定义提示词（可选，不填则默认重写）';
+  const ph = isV2 ? '例如：保留原结构，只把语气改得更热情'
+                  : '例如：突出性价比，加上使用场景，语气活泼一点';
+  const inputId = key + 'CustomPrompt';
+  let h = '<div class="custom-prompt-area">';
+  h += '<div class="cp-label"><svg class="ico"><use href="#i-info"/></svg> ' + label + '</div>';
+  h += '<div class="cp-row">';
+  h += '<input type="text" id="' + inputId + '" class="cp-input" placeholder="' + ph + '" />';
+  h += '<button class="btn-refresh cp-btn" onclick="savePromptTemplate(\'' + key + '\')">' +
+       '<svg class="ico"><use href="#i-download"/></svg> 存为模板</button>';
+  h += '<button class="btn-refresh cp-btn" onclick="customRewrite(\'' + key + '\')">' +
+       '<svg class="ico"><use href="#i-refresh"/></svg> 按提示词重写</button>';
+  h += '</div>';
+  h += '<div id="' + key + 'TplChips" class="cp-chips"></div>';
+  h += '</div>';
+  box.innerHTML = h;
+  setTimeout(function () { loadPromptTemplates(key); }, 60);
+}
+
+// 收集 V1 的下拉选择，重新替换
+function applyV1Choices() {
+  const sels = document.querySelectorAll('#copyControl .vc-select');
+  const choices = {};
+  sels.forEach(function (s) { choices[s.dataset.orig] = parseInt(s.value, 10) || 0; });
+  if (!_outputDir) { addLog('还没有商品数据', 'warn'); return; }
+  addLog('按当前选择重新做词典替换…', 'accent');
+  pywebview.api.regenerate_copy(_outputDir, 'v1', null, choices).then(function (r) {
+    if (!r || !r.success) {
+      addLog('替换失败：' + ((r && r.error) || '未知原因'), 'error');
+      return;
+    }
+    window._copies[0].text = r.text;
+    window._copies[0].banned = r.banned;
+    if (r.changes) window._v1Changes = r.changes;
+    switchCopy(0);
+    addLog('V1 重新替换完成（' + r.text.length + ' 字）', 'success');
+  }).catch(function (e) { addLog('替换异常：' + e, 'error'); });
+}
+
+// V2 / V3 按各自提示词重写
+function customRewrite(key) {
+  const el = document.getElementById(key + 'CustomPrompt');
+  const prompt = el ? el.value.trim() : '';
+  if (!_outputDir) { addLog('还没有商品数据', 'warn'); return; }
+  if (!prompt) {
+    addLog('提示词是空的，留空请直接点标签上的刷新图标', 'warn');
+    return;
+  }
+  addLog(key.toUpperCase() + ' 按提示词重写中…', 'accent');
+  pywebview.api.regenerate_copy(_outputDir, key, prompt).then(function (r) {
+    if (!r || !r.success) {
+      addLog('重写失败：' + ((r && r.error) || '未知原因'), 'error');
+      return;
+    }
+    const idx = key === 'v2' ? 1 : 2;
+    window._copies[idx].text = r.text;
+    window._copies[idx].banned = r.banned;
+    switchCopy(idx);
+    addLog(key.toUpperCase() + ' 重写完成（' + r.text.length + ' 字）', 'success');
+  }).catch(function (e) { addLog('重写异常：' + e, 'error'); });
 }
 
 function switchCopy(idx) {
@@ -288,6 +386,9 @@ function switchCopy(idx) {
     '<button class="btn-copy" onclick="showCopyHistory(' + idx + ')" title="查看生成历史" style="margin-left:auto;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-clock"/></svg> 历史</button>' +
     '<button class="btn-copy" onclick="copyText(' + idx + ')" style="margin-left:6px;padding:4px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text);cursor:pointer;font-size:12px;"><svg class="ico"><use href="#i-copy"/></svg> 一键复制</button></div>' +
     '<div class="copy-content" id="copyText_' + idx + '">' + escapeHtml(v.text) + '</div>';
+
+  // 控制区跟着当前版本切换
+  renderCopyControl(v.key);
 }
 
 function refreshCopy(idx) {
@@ -360,25 +461,6 @@ function doCopyFallback(text) {
   }
 }
 
-function v3CustomRewrite() {
-  if (!_outputDir || !window._copies) return;
-  const prompt = document.getElementById('v3CustomPrompt').value.trim();
-  if (!prompt) {
-    setStatus('请输入自定义提示词', 'error');
-    return;
-  }
-  addLog('V3按自定义提示词重写...', 'accent');
-  pywebview.api.regenerate_copy(_outputDir, 'v3', prompt).then(r => {
-    if (r.success) {
-      window._copies[2].text = r.text;
-      window._copies[2].banned = r.banned;
-      switchCopy(2);
-      addLog('V3自定义重写完成 (' + r.text.length + '字)', 'success');
-    } else {
-      addLog('V3重写失败: ' + r.error, 'error');
-    }
-  });
-}
 
 function downloadVideo() {
   if (!_outputDir) return;
@@ -610,8 +692,9 @@ window.addEventListener('pywebviewready', () => {
 
 
 // ===== 提示词模板 =====
-function loadPromptTemplates() {
-  const box = document.getElementById('v3TplChips');
+function loadPromptTemplates(key) {
+  key = key || 'v3';
+  const box = document.getElementById(key + 'TplChips');
   if (!box) return;
   pywebview.api.list_prompt_templates().then(function (r) {
     const items = (r && r.items) || [];
@@ -621,7 +704,7 @@ function loadPromptTemplates() {
       return;
     }
     box.innerHTML = '<span class="cp-tip">常用模板：</span>' + items.map(function (it, i) {
-      return '<span class="cp-chip" data-i="' + i + '" onclick="usePromptTemplate(this.dataset.i)" title="' +
+      return '<span class="cp-chip" data-i="' + i + '" onclick="usePromptTemplate(this.dataset.i, \'' + key + '\')" title="' +
         escapeHtml(it.prompt) + '">' + escapeHtml(it.name) +
         '<span class="cp-del" data-name="' + escapeHtml(it.name) +
         '" onclick="event.stopPropagation();deletePromptTemplate(this.dataset.name)">×</span></span>';
@@ -629,25 +712,28 @@ function loadPromptTemplates() {
   }).catch(function () {});
 }
 
-function usePromptTemplate(idx) {
+function usePromptTemplate(idx, key) {
+  key = key || 'v3';
   const items = window._promptTemplates || [];
   const it = items[parseInt(idx, 10)];
   if (!it) return;
-  const inp = document.getElementById('v3CustomPrompt');
+  const inp = document.getElementById(key + 'CustomPrompt');
   if (inp) {
     inp.value = it.prompt;
     inp.focus();
   }
 }
 
-function savePromptTemplate() {
-  const inp = document.getElementById('v3CustomPrompt');
+function savePromptTemplate(key) {
+  key = key || 'v3';
+  const inp = document.getElementById(key + 'CustomPrompt');
   const prompt = inp ? inp.value.trim() : '';
   if (!prompt) {
     addLog('先在输入框写下提示词，再点「存为模板」', 'warn');
     return;
   }
   window._pendingPrompt = prompt;
+  window._pendingPromptKey = key;
 
   Modal.open({
     id: 'tplNameOverlay',
@@ -682,7 +768,7 @@ function doSavePromptTemplate() {
     }
     Modal.close('tplNameOverlay');
     addLog('模板「' + name + '」已保存', 'success');
-    loadPromptTemplates();
+    loadPromptTemplates(window._pendingPromptKey || 'v3');
   }).catch(function (e) { addLog('保存异常：' + e, 'error'); });
 }
 

@@ -157,12 +157,40 @@ def post_process(text):
     text = re.sub(r'，\s*$', '', text)
     return text.strip()
 
-def v1_dict_replace(text):
+def v1_dict_replace(text, choices=None):
+    """V1 词典替换
+
+    choices: {原词: 同义词下标}，不传就用第 0 个。
+    之前写死 synonyms[0]，用户既没法控制用哪个同义词、也看不到改了哪些词。
+
+    返回 (替换后的文本, 替换明细列表)
+    明细结构：[{original, new, count, options, index}, ...]
+    """
     result = text
+    changes = []
     for original, synonyms in SYNONYM_DICT.items():
-        if original in result:
-            result = result.replace(original, synonyms[0])
-    return post_process(result)
+        if not synonyms or original not in result:
+            continue
+        idx = 0
+        if choices and original in choices:
+            try:
+                idx = int(choices[original])
+            except Exception:
+                idx = 0
+        idx = max(0, min(idx, len(synonyms) - 1))
+        new_word = synonyms[idx]
+        if new_word == original:
+            continue
+        count = result.count(original)
+        result = result.replace(original, new_word)
+        changes.append({
+            'original': original,
+            'new': new_word,
+            'count': count,
+            'options': list(synonyms),
+            'index': idx,
+        })
+    return post_process(result), changes
 
 def filter_banned(text):
     warnings = []
@@ -253,6 +281,33 @@ def v3_ai_full_rewrite(title, desc, banned_str, temperature=0.7):
     prompt = V3_PROMPT.format(title=title, desc=desc, banned=banned_str)
     return post_process(call_glm(prompt, max_tokens=1000, temperature=temperature))
 
+def v2_ai_custom(title, desc, custom_prompt, temperature=0.7):
+    """V2 自定义提示词微调
+
+    和 V3 自定义的区别：V2 是「微调」，要求保留原文结构和信息点；
+    V3 是「重写」，允许推翻重来。
+    """
+    full_prompt = f"""你是闲鱼文案专家。请在保留原文结构的前提下微调文案，并满足用户的额外要求。
+
+用户要求：
+{custom_prompt}
+
+规则：
+1. 标题不动，只调整正文
+2. 保留原文的段落顺序和关键信息点，不要大改结构
+3. 闲鱼风格：口语化、真诚
+4. 禁止emoji
+5. 不要用"白菜价""超级""最""第一""绝对"等违禁词
+6. 以下词语一律不得出现（出现即违规）：{"、".join(BANNED_WORDS)}
+7. 输出纯文本
+
+商品标题：{title}
+原文案：
+{desc}
+"""
+    return post_process(call_glm(full_prompt, max_tokens=1200, temperature=temperature))
+
+
 def v3_ai_custom_rewrite(title, desc, custom_prompt, temperature=0.7):
     """V3自定义提示词重写"""
     full_prompt = f"""你是闲鱼文案专家。请根据以下要求重写商品文案：
@@ -289,7 +344,7 @@ def generate_versions(title, desc):
     
     # V1是本地词典替换，瞬间完成
     print("--- V1 词典替换 ---")
-    v1 = v1_dict_replace(desc)
+    v1, v1_changes = v1_dict_replace(desc)
     v1_banned = filter_banned(v1)
     print(f"V1完成 ({len(v1)}字) 违禁词: {v1_banned if v1_banned else '无'}")
     
@@ -323,6 +378,8 @@ def generate_versions(title, desc):
         "v1": v1,
         "v2": v2,
         "v3": v3,
+        # V1 改了哪些词，前端要显示出来（原词 -> 新词 + 所有可选同义词）
+        "v1_changes": v1_changes,
         "banned_warnings": {"v1": v1_banned, "v2": v2_banned, "v3": v3_banned}
     }
 

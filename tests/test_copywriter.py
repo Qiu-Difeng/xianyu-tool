@@ -59,21 +59,62 @@ def test_post_process_strips_trailing_comma():
 # ---------------- v1_dict_replace ----------------
 
 def test_v1_replaces_synonym():
-    out = mc.v1_dict_replace('快来入手这个宝贝')
+    # v1_dict_replace 现在返回 (文本, 替换明细)
+    out, changes = mc.v1_dict_replace('快来入手这个宝贝')
     assert '入手' not in out
     assert '拿下' in out or '购入' in out
+    assert changes, '应该返回替换明细'
+    words = [c['original'] for c in changes]
+    assert '入手' in words
 
 
 def test_v1_keeps_unmatched_text():
-    out = mc.v1_dict_replace('这是一段没有同义词的话')
+    out, changes = mc.v1_dict_replace('这是一段没有同义词的话')
     assert '没有同义词' in out
+    assert changes == []
 
 
 def test_v1_also_runs_post_process():
     """词典替换后仍要去 emoji、换违禁词"""
-    out = mc.v1_dict_replace('白菜价😀')
+    out, _ = mc.v1_dict_replace('白菜价😀')
     assert '😀' not in out
     assert '白菜价' not in out
+
+
+def test_v1_changes_have_options():
+    """每条明细要带所有可选同义词 + 当前下标，前端靠它做下拉框"""
+    out, changes = mc.v1_dict_replace('快来入手这个宝贝')
+    for c in changes:
+        assert 'original' in c and 'new' in c
+        assert isinstance(c['options'], list) and len(c['options']) >= 1
+        assert 0 <= c['index'] < len(c['options'])
+        assert c['options'][c['index']] == c['new']
+        assert c['count'] >= 1
+
+
+def test_v1_honors_choices():
+    """指定同义词下标后要用对应的那个"""
+    base, _ = mc.v1_dict_replace('快来入手这个宝贝')
+    # 找一个有多个同义词的词
+    word = None
+    for k, v in mc.SYNONYM_DICT.items():
+        if len(v) > 1 and k in '快来入手这个宝贝':
+            word = k
+            break
+    if not word:
+        return
+    opts = mc.SYNONYM_DICT[word]
+    out, changes = mc.v1_dict_replace('快来入手这个宝贝', {word: 1})
+    assert opts[1] in out
+    hit = [c for c in changes if c['original'] == word]
+    assert hit and hit[0]['index'] == 1
+
+
+def test_v1_choice_index_clamped():
+    """下标越界不能崩，要夹到合法范围"""
+    word = list(mc.SYNONYM_DICT.keys())[0]
+    out, changes = mc.v1_dict_replace('快来入手这个宝贝', {word: 999})
+    assert isinstance(out, str)
 
 
 # ---------------- filter_banned ----------------
