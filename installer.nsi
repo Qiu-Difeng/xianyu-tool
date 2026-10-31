@@ -8,7 +8,7 @@ InstallDirRegKey HKCU "Software\XianyuTool" "InstallDir"
 RequestExecutionLevel User
 ShowInstDetails show
 
-VIProductVersion "1.5.8.0"
+VIProductVersion "1.5.9.0"
 VIAddVersionKey /LANG=2052 "ProductName" "XianyuTool"
 VIAddVersionKey /LANG=2052 "CompanyName" "Qiu-Difeng"
 VIAddVersionKey /LANG=2052 "FileDescription" "XianyuTool Setup"

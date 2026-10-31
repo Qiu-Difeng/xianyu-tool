@@ -52,7 +52,10 @@ a = Analysis(
     hiddenimports=['playwright.async_api', 'anti_detect', 'watermark_cleaner',
                    'certifi',
                    'llm_provider', 'image_search', 'task_queue',
-                   'module1_parser', 'module3_copywriter', 'app_logger'],
+                   'module1_parser', 'module3_copywriter', 'app_logger',
+                   # xianyu_gui 拆出来的 9 个 mixin
+                   'gui_update', 'gui_template', 'gui_history', 'gui_image',
+                   'gui_queue', 'gui_llm', 'gui_state', 'gui_copy', 'gui_misc'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
