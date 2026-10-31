@@ -1003,7 +1003,8 @@ body {
 
 <div class="input-area">
   <div class="input-wrap">
-    <input type="text" id="urlInput" placeholder="粘贴闲鱼商品链接（如 https://m.tb.cn/h.xxx）" />
+    <input type="text" id="urlInput" placeholder="粘贴闲鱼商品链接（如 https://m.tb.cn/h.xxx）"
+           onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();runTool();}" />
     <span class="icon-search"><svg class="ico"><use href="#i-search"/></svg></span>
   </div>
   <button class="btn-run" id="runBtn" onclick="runTool()">
@@ -1482,6 +1483,14 @@ function testModel(kind) {
 // 各弹窗只写自己的业务字段，不再复制一整套内联样式。
 const Modal = {
   open(opt) {
+    // 默认先清掉所有已打开的弹窗，避免「历史」+「设置」叠在一起互相挡。
+    // 但子弹窗（比如历史列表里点「删」弹出的确认框）要保留父弹窗，
+    // 否则列表会突然消失，用户不知道自己在删哪条。传 keepOthers: true 即可。
+    if (!opt.keepOthers) {
+      document.querySelectorAll('.modal-overlay').forEach(function (el) {
+        el.remove();
+      });
+    }
     this.close(opt.id);
     const overlay = document.createElement('div');
     overlay.id = opt.id;
@@ -1949,6 +1958,21 @@ function loadHistoryItem(idx) {
     if (p) p.innerHTML = renderCopies(data);
   });
 
+  // 补充图：渲染搜图区（之前历史记录加载后这块是空白）
+  const p4 = document.getElementById('pane4');
+  if (p4) p4.innerHTML = renderSearchImages([]);
+
+  // 视频：根据有没有 video_url 给提示（之前完全没渲染，点进去一片空白）
+  const p5 = document.getElementById('pane5');
+  if (p5) {
+    p5.innerHTML = it.video_url
+      ? '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span>' +
+        '<p>该商品有视频</p><button class="btn-refresh" onclick="downloadVideo()" ' +
+        'style="margin-top:12px;"><svg class="ico"><use href="#i-download"/></svg> 保存视频</button></div>'
+      : '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span>' +
+        '<p>该商品没有视频</p></div>';
+  }
+
   Modal.close('historyOverlay');
   switchTab(0);
   addLog('已加载历史记录：' + it.title, 'accent');
@@ -1970,6 +1994,7 @@ function deleteHistoryItem(i) {
   Modal.open({
     id: 'delHistOverlay',
     icon: 'i-alert',
+    keepOthers: true,      // 子弹窗：保留下面的历史列表，用户才知道在删哪条
     title: '删除这条记录？',
     desc: '商品图片、文案和结果文件会一起删掉，删了找不回来',
     body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(it.title) +
@@ -2225,6 +2250,16 @@ function switchTab(idx) {
   } else {
     stopQueuePolling();
   }
+
+  // 补充图 tab：第一次进来要把搜图区渲染出来。
+  // 之前只有「跑完商品」或「点搜索按钮」才填 pane4，
+  // 用户直接点这个 tab 看到的是空白一片。
+  if (idx === 4) {
+    const pane = document.getElementById('pane4');
+    if (pane && !pane.querySelector('.ms-box')) {
+      pane.innerHTML = renderSearchImages([]);
+    }
+  }
 }
 
 function addLog(msg, type) {
@@ -2250,7 +2285,12 @@ function setBtnLoading(loading) {
 
 function runTool() {
   const url = document.getElementById('urlInput').value.trim();
-  if (!url) { setStatus('请输入链接！', 'error'); return; }
+  if (!url) {
+    setStatus('请输入链接！', 'error');
+    addLog('还没填链接，把闲鱼商品链接粘贴到上面的输入框', 'warn');
+    document.getElementById('urlInput').focus();
+    return;
+  }
 
   // 没有 Key 就先拦住，别让用户白等一轮
   if (_keyConfigured === false) {

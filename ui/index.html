@@ -150,7 +150,8 @@
 
 <div class="input-area">
   <div class="input-wrap">
-    <input type="text" id="urlInput" placeholder="粘贴闲鱼商品链接（如 https://m.tb.cn/h.xxx）" />
+    <input type="text" id="urlInput" placeholder="粘贴闲鱼商品链接（如 https://m.tb.cn/h.xxx）"
+           onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();runTool();}" />
     <span class="icon-search"><svg class="ico"><use href="#i-search"/></svg></span>
   </div>
   <button class="btn-run" id="runBtn" onclick="runTool()">

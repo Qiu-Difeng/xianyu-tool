@@ -266,6 +266,8 @@ class Api:
                     'desc': data.get('original_desc') or '',
                     'images': len(data.get('original_images') or []),
                     'clean': len(data.get('clean_images') or []),
+                    # 历史记录加载后视频 tab 要显示"有/无视频"，缺这个字段就是空白
+                    'video_url': data.get('video_url') or '',
                     'output_dir': d,
                     'mtime': os.path.getmtime(rj),
                     'mtime_text': time.strftime('%m-%d %H:%M', time.localtime(os.path.getmtime(rj))),

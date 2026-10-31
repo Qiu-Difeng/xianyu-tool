@@ -11,6 +11,16 @@ function switchTab(idx) {
   } else {
     stopQueuePolling();
   }
+
+  // 补充图 tab：第一次进来要把搜图区渲染出来。
+  // 之前只有「跑完商品」或「点搜索按钮」才填 pane4，
+  // 用户直接点这个 tab 看到的是空白一片。
+  if (idx === 4) {
+    const pane = document.getElementById('pane4');
+    if (pane && !pane.querySelector('.ms-box')) {
+      pane.innerHTML = renderSearchImages([]);
+    }
+  }
 }
 
 function addLog(msg, type) {
@@ -36,7 +46,12 @@ function setBtnLoading(loading) {
 
 function runTool() {
   const url = document.getElementById('urlInput').value.trim();
-  if (!url) { setStatus('请输入链接！', 'error'); return; }
+  if (!url) {
+    setStatus('请输入链接！', 'error');
+    addLog('还没填链接，把闲鱼商品链接粘贴到上面的输入框', 'warn');
+    document.getElementById('urlInput').focus();
+    return;
+  }
 
   // 没有 Key 就先拦住，别让用户白等一轮
   if (_keyConfigured === false) {

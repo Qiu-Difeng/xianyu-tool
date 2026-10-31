@@ -89,6 +89,21 @@ function loadHistoryItem(idx) {
     if (p) p.innerHTML = renderCopies(data);
   });
 
+  // 补充图：渲染搜图区（之前历史记录加载后这块是空白）
+  const p4 = document.getElementById('pane4');
+  if (p4) p4.innerHTML = renderSearchImages([]);
+
+  // 视频：根据有没有 video_url 给提示（之前完全没渲染，点进去一片空白）
+  const p5 = document.getElementById('pane5');
+  if (p5) {
+    p5.innerHTML = it.video_url
+      ? '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span>' +
+        '<p>该商品有视频</p><button class="btn-refresh" onclick="downloadVideo()" ' +
+        'style="margin-top:12px;"><svg class="ico"><use href="#i-download"/></svg> 保存视频</button></div>'
+      : '<div class="empty"><span class="emoji"><svg class="ico"><use href="#i-video"/></svg></span>' +
+        '<p>该商品没有视频</p></div>';
+  }
+
   Modal.close('historyOverlay');
   switchTab(0);
   addLog('已加载历史记录：' + it.title, 'accent');
@@ -110,6 +125,7 @@ function deleteHistoryItem(i) {
   Modal.open({
     id: 'delHistOverlay',
     icon: 'i-alert',
+    keepOthers: true,      // 子弹窗：保留下面的历史列表，用户才知道在删哪条
     title: '删除这条记录？',
     desc: '商品图片、文案和结果文件会一起删掉，删了找不回来',
     body: '<p class="modal-note" style="text-align:center;">' + escapeHtml(it.title) +

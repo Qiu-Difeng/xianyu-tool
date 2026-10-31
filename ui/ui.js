@@ -4,6 +4,14 @@
 // 各弹窗只写自己的业务字段，不再复制一整套内联样式。
 const Modal = {
   open(opt) {
+    // 默认先清掉所有已打开的弹窗，避免「历史」+「设置」叠在一起互相挡。
+    // 但子弹窗（比如历史列表里点「删」弹出的确认框）要保留父弹窗，
+    // 否则列表会突然消失，用户不知道自己在删哪条。传 keepOthers: true 即可。
+    if (!opt.keepOthers) {
+      document.querySelectorAll('.modal-overlay').forEach(function (el) {
+        el.remove();
+      });
+    }
     this.close(opt.id);
     const overlay = document.createElement('div');
     overlay.id = opt.id;
