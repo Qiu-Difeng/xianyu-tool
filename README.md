@@ -111,9 +111,9 @@ python xianyu_gui.py
 
 | 服务商 | 文本模型 | 视觉模型 | 说明 |
 |--------|----------|----------|------|
-| 智谱 AI | glm-4-flash | glm-4v-flash | 两个都免费不限量，[申请地址](https://open.bigmodel.cn/) |
-| 魔搭 ModelScope | Qwen2.5-72B-Instruct | Qwen2-VL-7B-Instruct | 有免费额度 |
-| DeepSeek | deepseek-chat | 无 | 不支持图片，去水印要另配视觉模型 |
+| 智谱 AI | GLM-4.7-Flash | GLM-4.6V-Flash | 两个都免费不限量，[申请地址](https://open.bigmodel.cn/) |
+| 魔搭 ModelScope | ZhipuAI/GLM-5.3-Flash | ZhipuAI/GLM-5.3-Flash | 有免费额度[申请地址](https://www.modelscope.cn/home/) |
+| DeepSeek | DeepSeek-V4.1-Flash-1017 | DeepSeek-V4.1-Flash-1017 | [申请地址](https://platform.deepseek.com/)  |
 | 自定义 | 任意 | 任意 | 填任意兼容 `/chat/completions` 的地址 |
 
 **文本模型和视觉模型可以分开配**。勾选配置窗口里的「高级：文本/视觉分开配」，就能让文案走 DeepSeek、去水印走智谱，各用各的 Key。
